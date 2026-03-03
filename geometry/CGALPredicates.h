@@ -1,0 +1,109 @@
+// CGALPredicates.h
+//
+// Provides well-optimized CGAL-based geometry predicates that mirror the
+// Shewchuk API in CollisionPredicates.h / predicates.h.
+//
+// Available only when compiled with -DGEOMETRY_WITH_CGAL.
+// Uses CGAL::Exact_predicates_inexact_constructions_kernel (EPICK) throughout.
+// All collision tests use CGAL::do_intersect — no general Polyhedron routines.
+
+#ifndef SIMPEX_CGAL_PREDICATES_H
+#define SIMPEX_CGAL_PREDICATES_H
+
+#ifdef GEOMETRY_WITH_CGAL
+
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/intersections.h>
+
+#include "Point.h"
+
+namespace simpex {
+
+// ---------------------------------------------------------------------------
+// Internal helpers: convert simpex::Point to CGAL EPICK types
+// ---------------------------------------------------------------------------
+namespace _cgal {
+  using K    = CGAL::Exact_predicates_inexact_constructions_kernel;
+  using P2   = K::Point_2;
+  using P3   = K::Point_3;
+  using Tri3 = K::Triangle_3;
+  using Tet3 = K::Tetrahedron_3;
+
+  inline P2   to2(const Point& p) { return P2(p.x(), p.y()); }
+  inline P3   to3(const Point& p) { return P3(p.x(), p.y(), p.z()); }
+  inline Tri3 tri(const Point& a, const Point& b, const Point& c)
+  { return Tri3(to3(a), to3(b), to3(c)); }
+  inline Tet3 tet(const Point& a, const Point& b, const Point& c, const Point& d)
+  { return Tet3(to3(a), to3(b), to3(c), to3(d)); }
+}
+
+// ---------------------------------------------------------------------------
+// Orientation predicates
+// ---------------------------------------------------------------------------
+
+/// 2D orientation using CGAL EPICK.
+/// Returns positive (CCW), negative (CW), or zero (collinear).
+inline double cgal_orient2d(const Point& a, const Point& b, const Point& c)
+{
+  return static_cast<double>(
+    CGAL::orientation(_cgal::to2(a), _cgal::to2(b), _cgal::to2(c)));
+}
+
+/// 3D orientation using CGAL EPICK, adjusted to match Shewchuk's sign convention.
+///
+/// Shewchuk's orient3d uses the **left-hand rule** (as stated in predicates.h):
+///   orient3d(a,b,c,d) > 0  when a,b,c,d are in left-hand orientation.
+/// CGAL's orientation uses the **right-hand rule**:
+///   CGAL::orientation(a,b,c,d) = POSITIVE when d is on the right-hand side of (a,b,c).
+///
+/// These conventions are exactly opposite for non-degenerate points, so we negate
+/// the CGAL result here to make cgal_orient3d() agree with orient3d() in sign.
+inline double cgal_orient3d(const Point& a, const Point& b,
+                             const Point& c, const Point& d)
+{
+  return -static_cast<double>(
+    CGAL::orientation(_cgal::to3(a), _cgal::to3(b),
+                      _cgal::to3(c), _cgal::to3(d)));
+}
+
+// ---------------------------------------------------------------------------
+// Collision predicates — all use CGAL::do_intersect (EPICK)
+// ---------------------------------------------------------------------------
+
+/// Check whether two 3D triangles intersect.
+inline bool cgal_collides_triangle_triangle_3d(
+    const Point& p0, const Point& p1, const Point& p2,
+    const Point& q0, const Point& q1, const Point& q2)
+{
+  return CGAL::do_intersect(_cgal::tri(p0, p1, p2),
+                            _cgal::tri(q0, q1, q2));
+}
+
+/// Check whether two 3D tetrahedra intersect.
+inline bool cgal_collides_tetrahedron_tetrahedron_3d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+    const Point& q0, const Point& q1, const Point& q2, const Point& q3)
+{
+  return CGAL::do_intersect(_cgal::tet(p0, p1, p2, p3),
+                            _cgal::tet(q0, q1, q2, q3));
+}
+
+/// Check whether a 3D triangle intersects a point.
+inline bool cgal_collides_triangle_point_3d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& q)
+{
+  return CGAL::do_intersect(_cgal::tri(p0, p1, p2), _cgal::to3(q));
+}
+
+/// Check whether a 3D tetrahedron intersects a point.
+inline bool cgal_collides_tetrahedron_point_3d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+    const Point& q)
+{
+  return CGAL::do_intersect(_cgal::tet(p0, p1, p2, p3), _cgal::to3(q));
+}
+
+} // namespace simpex
+
+#endif // GEOMETRY_WITH_CGAL
+#endif // SIMPEX_CGAL_PREDICATES_H
