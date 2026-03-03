@@ -33,9 +33,9 @@
 #ifndef SIMPEX_ENABLE_GEOMETRY_DEBUGGING
 
 // Comparison macro just bypasses CGAL and test when not enabled
-#define CHECK_CGAL(RESULT_DOLFIN, RESULT_CGAL) RESULT_DOLFIN
+#define CHECK_CGAL(RESULT_SIMPEX, RESULT_CGAL) RESULT_SIMPEX
 
-#define CGAL_INTERSECTION_CHECK(RESULT_DOLFIN, RESULT_CGAL) RESULT_DOLFIN
+#define CGAL_INTERSECTION_CHECK(RESULT_SIMPEX, RESULT_CGAL) RESULT_SIMPEX
 
 #else
 
@@ -43,41 +43,38 @@
 
 #include "Point.h"
 #include "predicates.h"
-#include <dolfin/log/log.h>
-#include <dolfin/log/LogStream.h>
-#include <dolfin/math/basic.h>
 #include <vector>
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 
-// Check that results from DOLFIN and CGAL match
+// Check that results from SIMPEX and CGAL match
 namespace simpex
 {
   //---------------------------------------------------------------------------
-  // Functions to compare results between DOLFIN and CGAL
+  // Functions to compare results between SIMPEX and CGAL
   //---------------------------------------------------------------------------
   inline bool
-  check_cgal(bool result_dolfin,
+  check_cgal(bool result_simpex,
 	     bool result_cgal,
 	     const std::string& function)
   {
-    if (result_dolfin != result_cgal)
+    if (result_simpex != result_cgal)
     {
       // Convert results to strings
       std::stringstream s_dolfin;
       std::stringstream s_cgal;
-      s_dolfin << result_dolfin;
+      s_dolfin << result_simpex;
       s_cgal << result_cgal;
 
       // Issue error
       dolfin_error("CGALExactArithmetic.h",
                    "verify geometric predicate with exact types",
-                   "Error in predicate %s\n DOLFIN: %s\n CGAL: %s",
+                   "Error in predicate %s\n SIMPEX: %s\n CGAL: %s",
                    function.c_str(), s_dolfin.str().c_str(), s_cgal.str().c_str());
     }
 
-    return result_dolfin;
+    return result_simpex;
   }
   //-----------------------------------------------------------------------------
   inline
@@ -117,11 +114,11 @@ namespace simpex
 } // end namespace simpex
 //-----------------------------------------------------------------------------
 // Comparison macro that calls comparison function
-#define CHECK_CGAL(RESULT_DOLFIN, RESULT_CGAL) \
-  check_cgal(RESULT_DOLFIN, RESULT_CGAL, __FUNCTION__)
+#define CHECK_CGAL(RESULT_SIMPEX, RESULT_CGAL) \
+  check_cgal(RESULT_SIMPEX, RESULT_CGAL, __FUNCTION__)
 
-#define CGAL_INTERSECTION_CHECK(RESULT_DOLFIN, RESULT_CGAL) \
-  cgal_intersection_check(RESULT_DOLFIN, RESULT_CGAL, __FUNCTION__)
+#define CGAL_INTERSECTION_CHECK(RESULT_SIMPEX, RESULT_CGAL) \
+  cgal_intersection_check(RESULT_SIMPEX, RESULT_CGAL, __FUNCTION__)
 
 // CGAL includes
 #define CGAL_HEADER_ONLY
@@ -382,7 +379,7 @@ namespace
 namespace simpex
 {
   //---------------------------------------------------------------------------
-  // Reference implementations of DOLFIN collision detection predicates
+  // Reference implementations of SIMPEX collision detection predicates
   // using CGAL exact arithmetic
   // ---------------------------------------------------------------------------
   inline bool cgal_collides_segment_point_2d(const Point& q0,
@@ -574,7 +571,7 @@ namespace simpex
     return cnt != 0;
   }
   //----------------------------------------------------------------------------
-  // Reference implementations of DOLFIN intersection triangulation
+  // Reference implementations of SIMPEX intersection triangulation
   // functions using CGAL with exact arithmetic
   // ---------------------------------------------------------------------------
   inline
@@ -1009,7 +1006,7 @@ namespace simpex
     return res;
   }
   //----------------------------------------------------------------------------
-  // Reference implementations of DOLFIN is_degenerate
+  // Reference implementations of SIMPEX is_degenerate
   //-----------------------------------------------------------------------------
   inline bool cgal_is_degenerate_2d(const std::vector<Point>& s)
   {
