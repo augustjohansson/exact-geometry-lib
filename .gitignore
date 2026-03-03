@@ -10,3 +10,8 @@ CMakeFiles/
 cmake_install.cmake
 CTestTestfile.cmake
 Makefile
+
+# Python
+__pycache__/
+*.pyc
+*.pyd
