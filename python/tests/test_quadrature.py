@@ -3,7 +3,7 @@
 
 import math
 import pytest
-from geometry import Point, SimplexQuadrature
+from simpex import Point, SimplexQuadrature
 
 
 # ---------------------------------------------------------------------------

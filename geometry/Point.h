@@ -9,7 +9,7 @@
 #include <ostream>
 #include <sstream>
 
-namespace dolfin
+namespace simpex
 {
   // Optional: aggressive inlining hint for hot builds
 #if defined(_MSC_VER)

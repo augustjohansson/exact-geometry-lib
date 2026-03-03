@@ -25,7 +25,7 @@
 #include <Eigen/Dense>
 #include "Point.h"
 
-namespace dolfin
+namespace simpex
 {
 
   /// This class defines quadrature rules for simplices.

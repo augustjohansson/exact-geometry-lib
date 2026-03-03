@@ -25,7 +25,7 @@
 #include <string>
 #include "Point.h"
 
-namespace dolfin
+namespace simpex
 {
 
   /// This class provides useful functionality for debugging algorithms

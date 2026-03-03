@@ -24,7 +24,7 @@
 #include <vector>
 #include "Point.h"
 
-namespace dolfin
+namespace simpex
 {
   /// This class implements algorithms for computing pairwise
   /// intersections of simplices. The computed intersection is always

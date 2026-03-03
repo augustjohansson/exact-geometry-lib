@@ -21,7 +21,9 @@
 #ifndef __COLLISION_PREDICATES_H
 #define __COLLISION_PREDICATES_H
 
-namespace dolfin
+#include <cstddef>
+
+namespace simpex
 {
 
   // Forward declarations

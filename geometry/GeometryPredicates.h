@@ -24,7 +24,7 @@
 #include <vector>
 #include "Point.h"
 
-namespace dolfin
+namespace simpex
 {
 
   /// This class implements geometric predicates, i.e. function that

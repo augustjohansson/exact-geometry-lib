@@ -2,23 +2,23 @@
 #include "predicates.h"
 
 //-----------------------------------------------------------------------------
-double dolfin::orient1d(double a, double b, double x)
+double simpex::orient1d(double a, double b, double x)
 {
   if (x > std::max(a, b)) return 1.0;
   if (x < std::min(a, b)) return -1.0;
   return 0.0;
 }
 //-----------------------------------------------------------------------------
-double dolfin::orient2d(const Point& a, const Point& b, const Point& c)
+double simpex::orient2d(const Point& a, const Point& b, const Point& c)
 {
-  return dolfin::_orient2d(a.coordinates(),
+  return simpex::_orient2d(a.coordinates(),
                            b.coordinates(),
                            c.coordinates());
 }
 //-----------------------------------------------------------------------------
-double dolfin::orient3d(const Point& a, const Point& b, const Point& c, const Point& d)
+double simpex::orient3d(const Point& a, const Point& b, const Point& c, const Point& d)
 {
-  return dolfin::_orient3d(a.coordinates(),
+  return simpex::_orient3d(a.coordinates(),
                            b.coordinates(),
                            c.coordinates(),
                            d.coordinates());
@@ -667,7 +667,7 @@ float uniformfloatrand()
 /*                                                                           */
 /*****************************************************************************/
 
-void dolfin::exactinit()
+void simpex::exactinit()
 {
   REAL half;
   REAL check, lastcheck;
@@ -1643,7 +1643,7 @@ REAL orient2dadapt(const REAL *pa, const REAL *pb, const REAL *pc, const REAL de
   return(D[Dlength - 1]);
 }
 
-REAL dolfin::_orient2d(const REAL *pa, const REAL *pb, const REAL *pc)
+REAL simpex::_orient2d(const REAL *pa, const REAL *pb, const REAL *pc)
 /* REAL *pa; */
 /* REAL *pb; */
 /* REAL *pc; */
@@ -2315,7 +2315,7 @@ REAL orient3dadapt(const REAL *pa, const REAL *pb, const REAL *pc, const REAL *p
   return finnow[finlength - 1];
 }
 
-REAL dolfin::_orient3d(const REAL *pa, const REAL *pb, const REAL *pc, const REAL *pd)
+REAL simpex::_orient3d(const REAL *pa, const REAL *pb, const REAL *pc, const REAL *pd)
 /* REAL *pa; */
 /* REAL *pb; */
 /* REAL *pc; */
@@ -2365,7 +2365,7 @@ REAL dolfin::_orient3d(const REAL *pa, const REAL *pb, const REAL *pc, const REA
 
 #include "predicates.h"
 
-namespace dolfin
+namespace simpex
 {
   /// Initialize the predicate
   PredicateInitialization predicate_initialization;

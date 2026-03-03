@@ -31,7 +31,7 @@ typedef K::Point_3   CGALPoint3;
 typedef K::Triangle_3 CGALTriangle3;
 typedef K::Tetrahedron_3 CGALTetrahedron3;
 
-using namespace dolfin;
+using namespace simpex;
 
 // ---------------------------------------------------------------------------
 // Timing helper

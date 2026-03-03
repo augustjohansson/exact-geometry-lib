@@ -25,7 +25,7 @@
 #include "predicates.h"
 #include "Point.h"
 
-namespace dolfin
+namespace simpex
 {
 
   /// This class provides useful tools (functions) for computational geometry.

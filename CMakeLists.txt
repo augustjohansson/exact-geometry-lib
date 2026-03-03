@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(exact-geometry-lib VERSION 1.0.0 LANGUAGES CXX)
+project(simpex VERSION 1.0.0 LANGUAGES CXX)
 
 # Options
 option(BUILD_TESTING "Build tests" ON)
@@ -35,13 +35,15 @@ if(BUILD_TESTING)
 
   # Add Python tests if Python bindings are built
   if(BUILD_PYTHON)
-    find_program(PYTEST_EXECUTABLE pytest)
-    if(PYTEST_EXECUTABLE)
+    find_program(PYTHON3_EXECUTABLE NAMES python3 python)
+    if(PYTHON3_EXECUTABLE)
       add_test(
         NAME python_tests
-        COMMAND ${PYTEST_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/tests -v
+        COMMAND ${PYTHON3_EXECUTABLE} -m pytest ${CMAKE_SOURCE_DIR}/python/tests -v
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/python
       )
+      set_tests_properties(python_tests PROPERTIES
+        ENVIRONMENT "SIMPEX_BUILD_DIR=${CMAKE_BINARY_DIR}/python")
     endif()
   endif()
 endif()

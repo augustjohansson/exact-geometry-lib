@@ -12,7 +12,7 @@
 #ifndef __PREDICATES_H
 #define __PREDICATES_H
 
-namespace dolfin
+namespace simpex
 {
 
   class Point;
@@ -28,7 +28,7 @@ namespace dolfin
   /// counter-clockwise.
   double _orient2d(const double* a, const double* b, const double* c);
 
-  /// Convenience function using dolfin::Point
+  /// Convenience function using simpex::Point
   double orient2d(const Point& a, const Point& b, const Point& c);
 
   /// Compute relative orientation of points a, b, c, d. The
@@ -36,7 +36,7 @@ namespace dolfin
   /// are oriented according to the left hand rule.
   double _orient3d(const double* a, const double* b, const double* c, const double* d);
 
-  /// Convenience function using dolfin::Point
+  /// Convenience function using simpex::Point
   double orient3d(const Point& a, const Point& b, const Point& c, const Point& d);
 
   /// Class used for automatic initialization of tolerances at startup.

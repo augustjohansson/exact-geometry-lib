@@ -3,7 +3,7 @@
 
 import math
 import pytest
-from geometry import Point, ConvexTriangulation, CollisionPredicates
+from simpex import Point, ConvexTriangulation, CollisionPredicates
 
 
 def orient3d_val(a, b, c, d):
@@ -43,7 +43,7 @@ def triangulation_selfintersects_3d(triangulation):
     Check if a 3D triangulation self-intersects.
     Mirrors the local helper from the C++ test (respects shared vertices).
     """
-    from geometry import CollisionPredicates
+    from simpex import CollisionPredicates
     dim = 3
     for i in range(len(triangulation)):
         t1 = triangulation[i]

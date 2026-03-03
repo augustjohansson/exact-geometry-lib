@@ -20,7 +20,7 @@
 #include "SimplexQuadrature.h"
 #include "predicates.h"
 
-using namespace dolfin;
+using namespace simpex;
 
 //-----------------------------------------------------------------------------
 SimplexQuadrature::SimplexQuadrature(std::size_t tdim, std::size_t order)

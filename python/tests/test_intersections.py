@@ -3,7 +3,7 @@
 
 import math
 import pytest
-from geometry import Point, IntersectionConstruction as IC
+from simpex import Point, IntersectionConstruction as IC
 
 
 def point_norm(p):

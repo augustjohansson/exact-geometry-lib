@@ -24,7 +24,7 @@
 #include "predicates.h"
 #include "GeometryPredicates.h"
 
-using namespace dolfin;
+using namespace simpex;
 
 //-----------------------------------------------------------------------------
 bool GeometryPredicates::is_degenerate(const std::vector<Point>& simplex,

@@ -30,7 +30,7 @@
 #include "CGALExactArithmetic.h"
 #include <algorithm>
 
-using namespace dolfin;
+using namespace simpex;
 
 namespace
 {

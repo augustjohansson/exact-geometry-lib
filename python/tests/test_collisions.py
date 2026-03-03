@@ -2,7 +2,7 @@
 
 
 import pytest
-from geometry import Point, CollisionPredicates as CP
+from simpex import Point, CollisionPredicates as CP
 
 
 # ---------------------------------------------------------------------------

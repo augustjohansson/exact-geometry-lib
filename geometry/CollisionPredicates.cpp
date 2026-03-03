@@ -27,7 +27,7 @@
 
 #include "CGALExactArithmetic.h"
 
-using namespace dolfin;
+using namespace simpex;
 
 //-----------------------------------------------------------------------------
 // Low-level collision detection predicates

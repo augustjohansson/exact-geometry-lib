@@ -23,7 +23,7 @@
 
 #include "GeometryDebugging.h"
 
-using namespace dolfin;
+using namespace simpex;
 
 // Plotting not initialized
 bool GeometryDebugging::_initialized = false;

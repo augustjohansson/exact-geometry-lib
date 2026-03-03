@@ -23,9 +23,9 @@ namespace {
 #endif
 
 namespace py = pybind11;
-using namespace dolfin;
+using namespace simpex;
 
-PYBIND11_MODULE(geometry, m)
+PYBIND11_MODULE(simpex, m)
 {
   m.doc() = "Python bindings for exact-geometry-lib";
 
