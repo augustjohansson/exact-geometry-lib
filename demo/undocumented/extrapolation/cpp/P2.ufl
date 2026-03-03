@@ -1,3 +1,0 @@
-from ufl_legacy import (FiniteElement, triangle)
-
-element = FiniteElement("Lagrange", triangle, 2)
