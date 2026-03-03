@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
-
-find_package(pybind11 REQUIRED)
+cmake_minimum_required(VERSION 3.10)
 
 pybind11_add_module(geometry bindings.cpp)
 target_link_libraries(geometry PRIVATE geometry_lib)
