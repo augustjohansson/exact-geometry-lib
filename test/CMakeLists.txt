@@ -9,7 +9,7 @@ set(TEST_SOURCES
 
 add_executable(geometry_tests ${TEST_SOURCES})
 target_include_directories(geometry_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(geometry_tests PRIVATE geometry)
+target_link_libraries(geometry_tests PRIVATE geometry_lib)
 target_compile_features(geometry_tests PRIVATE cxx_std_11)
 
 enable_testing()

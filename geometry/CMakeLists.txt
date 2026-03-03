@@ -27,18 +27,19 @@ set(GEOMETRY_HEADERS
   predicates.h
 )
 
-add_library(geometry STATIC ${GEOMETRY_SOURCES})
-target_include_directories(geometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_features(geometry PUBLIC cxx_std_11)
+add_library(geometry_lib STATIC ${GEOMETRY_SOURCES})
+target_include_directories(geometry_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(geometry_lib PUBLIC cxx_std_11)
+set_target_properties(geometry_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(GEOMETRY_ENABLE_CGAL_DEBUGGING)
-  target_compile_definitions(geometry PUBLIC DOLFIN_ENABLE_GEOMETRY_DEBUGGING)
+  target_compile_definitions(geometry_lib PUBLIC DOLFIN_ENABLE_GEOMETRY_DEBUGGING)
   find_package(CGAL REQUIRED)
-  target_link_libraries(geometry PUBLIC CGAL::CGAL)
+  target_link_libraries(geometry_lib PUBLIC CGAL::CGAL)
 endif()
 
 find_package(Eigen3 REQUIRED NO_MODULE)
-target_link_libraries(geometry PUBLIC Eigen3::Eigen)
+target_link_libraries(geometry_lib PUBLIC Eigen3::Eigen)
 
-install(TARGETS geometry ARCHIVE DESTINATION lib)
+install(TARGETS geometry_lib ARCHIVE DESTINATION lib)
 install(FILES ${GEOMETRY_HEADERS} DESTINATION include/geometry)
