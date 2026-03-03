@@ -4,7 +4,6 @@ cmake_minimum_required(VERSION 3.5)
 option(GEOMETRY_ENABLE_CGAL_DEBUGGING "Enable CGAL-based verification of geometry predicates" OFF)
 
 set(GEOMETRY_SOURCES
-  Point.cpp
   predicates.cpp
   CollisionPredicates.cpp
   ConvexTriangulation.cpp
