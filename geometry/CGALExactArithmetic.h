@@ -18,14 +18,6 @@
 // First added:  2016-05-03
 // Last changed: 2017-10-26
 //
-// Developer note:
-//
-// This file contains reference implementations of collision detection
-// algorithms using exact arithmetic with CGAL. It is not included in
-// a normal build but is used as a reference for verification and
-// debugging of the inexact DOLFIN collision detection algorithms.
-// To enable, set the option SIMPEX_ENABLE_GEOMETRY_DEBUGGING when
-// configuring DOLFIN
 
 #ifndef __CGAL_EXACT_ARITHMETIC_H
 #define __CGAL_EXACT_ARITHMETIC_H
@@ -39,8 +31,6 @@
 
 #else
 
-#define CGAL_CHECK_TOLERANCE 1e-10
-
 #include "Point.h"
 #include "predicates.h"
 #include <vector>
@@ -49,12 +39,7 @@
 #include <iomanip>
 #include <stdexcept>
 #include <cstdio>
-
-// Compatibility macros replacing DOLFIN's logging/assertion helpers
-#ifndef dolfin_assert
-#  include <cassert>
-#  define dolfin_assert(cond) assert(cond)
-#endif
+#include <cassert>
 
 #ifndef dolfin_error
 #  define dolfin_error(location, task, msg, ...) \
@@ -63,10 +48,6 @@
        std::snprintf(_buf, sizeof(_buf), "Error in %s (%s): " msg, location, task, ##__VA_ARGS__); \
        throw std::runtime_error(_buf); \
      } while(0)
-#endif
-
-#ifndef simpex_info
-#  define simpex_info(msg, ...) do { std::printf(msg "\n", ##__VA_ARGS__); } while(0)
 #endif
 
 // Check that results from SIMPEX and CGAL match
@@ -570,19 +551,19 @@ namespace simpex
 							  const Point& q0,
 							  const Point& q1)
   {
-    dolfin_assert(!is_degenerate_2d(p0, p1));
-    dolfin_assert(!is_degenerate_2d(q0, q1));
+    assert(!is_degenerate_2d(p0, p1));
+    assert(!is_degenerate_2d(q0, q1));
 
     const auto I0 = convert_to_cgal_2d(p0, p1);
     const auto I1 = convert_to_cgal_2d(q0, q1);
 
     if (const auto ii = CGAL::intersection(I0, I1))
     {
-      if (const Point_2* p = boost::get<Point_2>(&*ii))
+      if (const Point_2* p = std::get_if<Point_2>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_2* s = boost::get<Segment_2>(&*ii))
+      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
       {
         return convert_from_cgal(*s);
       }
@@ -603,19 +584,19 @@ namespace simpex
 							  const Point& q0,
 							  const Point& q1)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1));
-    dolfin_assert(!is_degenerate_3d(q0, q1));
+    assert(!is_degenerate_3d(p0, p1));
+    assert(!is_degenerate_3d(q0, q1));
 
     const auto I0 = convert_to_cgal_3d(p0, p1);
     const auto I1 = convert_to_cgal_3d(q0, q1);
 
     if (const auto ii = CGAL::intersection(I0, I1))
     {
-      if (const Point_3* p = boost::get<Point_3>(&*ii))
+      if (const Point_3* p = std::get_if<Point_3>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_3* s = boost::get<Segment_3>(&*ii))
+      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
       {
         return convert_from_cgal(*s);
       }
@@ -655,19 +636,19 @@ namespace simpex
                                                            const Point& q0,
                                                            const Point& q1)
   {
-    dolfin_assert(!is_degenerate_2d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_2d(q0, q1));
+    assert(!is_degenerate_2d(p0, p1, p2));
+    assert(!is_degenerate_2d(q0, q1));
 
     const auto T = convert_to_cgal_2d(p0, p1, p2);
     const auto I = convert_to_cgal_2d(q0, q1);
 
     if (const auto ii = CGAL::intersection(T, I))
     {
-      if (const Point_2* p = boost::get<Point_2>(&*ii))
+      if (const Point_2* p = std::get_if<Point_2>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_2* s = boost::get<Segment_2>(&*ii))
+      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
       {
         return convert_from_cgal(*s);
       }
@@ -689,17 +670,17 @@ namespace simpex
 							   const Point& q0,
 							   const Point& q1)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_3d(q0, q1));
+    assert(!is_degenerate_3d(p0, p1, p2));
+    assert(!is_degenerate_3d(q0, q1));
 
     const auto T = convert_to_cgal_3d(p0, p1, p2);
     const auto I = convert_to_cgal_3d(q0, q1);
 
     if (const auto ii = CGAL::intersection(T, I))
     {
-      if (const Point_3* p = boost::get<Point_3>(&*ii))
+      if (const Point_3* p = std::get_if<Point_3>(&*ii))
         return std::vector<Point>{convert_from_cgal(*p)};
-      else if (const Segment_3* s = boost::get<Segment_3>(&*ii))
+      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
         return convert_from_cgal(*s);
       else
       {
@@ -740,8 +721,8 @@ namespace simpex
                                                             const Point& q1,
                                                             const Point& q2)
   {
-    dolfin_assert(!is_degenerate_2d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_2d(q0, q1, q2));
+    assert(!is_degenerate_2d(p0, p1, p2));
+    assert(!is_degenerate_2d(q0, q1, q2));
 
     const Triangle_2 T0 = convert_to_cgal_2d(p0, p1, p2);
     const Triangle_2 T1 = convert_to_cgal_2d(q0, q1, q2);
@@ -749,19 +730,19 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T0, T1))
     {
-      if (const Point_2* p = boost::get<Point_2>(&*ii))
+      if (const Point_2* p = std::get_if<Point_2>(&*ii))
       {
         intersection.push_back(convert_from_cgal(*p));
       }
-      else if (const Segment_2* s = boost::get<Segment_2>(&*ii))
+      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
       {
         intersection = convert_from_cgal(*s);
       }
-      else if (const Triangle_2* t = boost::get<Triangle_2>(&*ii))
+      else if (const Triangle_2* t = std::get_if<Triangle_2>(&*ii))
       {
         intersection = convert_from_cgal(*t);;
       }
-      else if (const std::vector<Point_2>* cgal_points = boost::get<std::vector<Point_2>>(&*ii))
+      else if (const std::vector<Point_2>* cgal_points = std::get_if<std::vector<Point_2>>(&*ii))
       {
         for (Point_2 p : *cgal_points)
         {
@@ -794,8 +775,8 @@ namespace simpex
 							    const Point& q1,
 							    const Point& q2)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_3d(q0, q1, q2));
+    assert(!is_degenerate_3d(p0, p1, p2));
+    assert(!is_degenerate_3d(q0, q1, q2));
 
     const Triangle_3 T0 = convert_to_cgal_3d(p0, p1, p2);
     const Triangle_3 T1 = convert_to_cgal_3d(q0, q1, q2);
@@ -803,19 +784,19 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T0, T1))
     {
-      if (const Point_3* p = boost::get<Point_3>(&*ii))
+      if (const Point_3* p = std::get_if<Point_3>(&*ii))
       {
         intersection.push_back(convert_from_cgal(*p));
       }
-      else if (const Segment_3* s = boost::get<Segment_3>(&*ii))
+      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
       {
         intersection = convert_from_cgal(*s);
       }
-      else if (const Triangle_3* t = boost::get<Triangle_3>(&*ii))
+      else if (const Triangle_3* t = std::get_if<Triangle_3>(&*ii))
       {
         intersection = convert_from_cgal(*t);;
       }
-      else if (const std::vector<Point_3>* cgal_points = boost::get<std::vector<Point_3>>(&*ii))
+      else if (const std::vector<Point_3>* cgal_points = std::get_if<std::vector<Point_3>>(&*ii))
       {
         for (Point_3 p : *cgal_points)
         {
@@ -842,8 +823,8 @@ namespace simpex
 					const Point& q1,
 					const Point& q2)
   {
-    dolfin_assert(!is_degenerate_2d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_2d(q0, q1, q2));
+    assert(!is_degenerate_2d(p0, p1, p2));
+    assert(!is_degenerate_2d(q0, q1, q2));
 
     const std::vector<Point> intersection
       = cgal_intersection_triangle_triangle_2d(p0, p1, p2, q0, q1, q2);
@@ -854,7 +835,7 @@ namespace simpex
     }
     else
     {
-      dolfin_assert(intersection.size() == 4 ||
+      assert(intersection.size() == 4 ||
 		    intersection.size() == 5 ||
 		    intersection.size() == 6);
       return triangulate_polygon_2d(intersection);
@@ -870,8 +851,8 @@ namespace simpex
 					const Point& q1,
 					const Point& q2)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2));
-    dolfin_assert(!is_degenerate_3d(q0, q1, q2));
+    assert(!is_degenerate_3d(p0, p1, p2));
+    assert(!is_degenerate_3d(q0, q1, q2));
 
     const std::vector<Point> intersection
       = cgal_intersection_triangle_triangle_3d(p0, p1, p2, q0, q1, q2);
@@ -882,7 +863,7 @@ namespace simpex
     }
     else
     {
-      dolfin_assert(intersection.size() == 4 ||
+      assert(intersection.size() == 4 ||
 		    intersection.size() == 5 ||
 		    intersection.size() == 6);
       return triangulate_polygon_3d(intersection);
@@ -899,8 +880,8 @@ namespace simpex
 					 const Point& q1,
 					 const Point& q2)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2, p3));
-    dolfin_assert(!is_degenerate_3d(q0, q1, q2));
+    assert(!is_degenerate_3d(p0, p1, p2, p3));
+    assert(!is_degenerate_3d(q0, q1, q2));
 
     // Shouldn't get here
     dolfin_error("CGALExactArithmetic.h",
@@ -919,8 +900,8 @@ namespace simpex
 					const Point& q1,
 					const Point& q2)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2, p3));
-    dolfin_assert(!is_degenerate_3d(q0, q1, q2));
+    assert(!is_degenerate_3d(p0, p1, p2, p3));
+    assert(!is_degenerate_3d(q0, q1, q2));
 
     std::vector<Point> intersection =
       cgal_intersection_tetrahedron_triangle(p0, p1, p2, p3, q0, q1, q2);
@@ -943,8 +924,8 @@ namespace simpex
 					       const Point& q2,
 					       const Point& q3)
   {
-    dolfin_assert(!is_degenerate_3d(p0, p1, p2, p3));
-    dolfin_assert(!is_degenerate_3d(q0, q1, q2, q3));
+    assert(!is_degenerate_3d(p0, p1, p2, p3));
+    assert(!is_degenerate_3d(q0, q1, q2, q3));
 
     Polyhedron_3 tet_a;
     tet_a.make_tetrahedron(convert_to_cgal_3d(p0),
@@ -981,7 +962,7 @@ namespace simpex
   {
     if (s.size() < 2 or s.size() > 3)
     {
-      simpex_info("Degenerate 2D simplex with %d vertices.", (int)s.size());
+      std::printf("Degenerate 2D simplex with %zu vertices.", s.size());
       return true;
     }
 
@@ -1003,7 +984,7 @@ namespace simpex
   {
     if (s.size() < 2 or s.size() > 4)
     {
-      simpex_info("Degenerate 3D simplex with %d vertices.", (int)s.size());
+      std::printf("Degenerate 3D simplex with %zu vertices.", s.size());
       return true;
     }
 
@@ -1056,7 +1037,7 @@ namespace simpex
   //-----------------------------------------------------------------------------
   inline double cgal_tet_volume(const std::vector<Point>& ch)
   {
-    dolfin_assert(ch.size() == 3);
+    assert(ch.size() == 3);
     return CGAL::to_double(CGAL::volume(Point_3(ch[0].x(), ch[0].y(), ch[0].z()),
                                         Point_3(ch[1].x(), ch[1].y(), ch[1].z()),
                                         Point_3(ch[2].x(), ch[2].y(), ch[2].z()),
