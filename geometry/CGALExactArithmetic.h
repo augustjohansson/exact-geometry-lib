@@ -47,6 +47,27 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <stdexcept>
+#include <cstdio>
+
+// Compatibility macros replacing DOLFIN's logging/assertion helpers
+#ifndef dolfin_assert
+#  include <cassert>
+#  define dolfin_assert(cond) assert(cond)
+#endif
+
+#ifndef dolfin_error
+#  define dolfin_error(location, task, msg, ...) \
+     do { \
+       char _buf[512]; \
+       std::snprintf(_buf, sizeof(_buf), "Error in %s (%s): " msg, location, task, ##__VA_ARGS__); \
+       throw std::runtime_error(_buf); \
+     } while(0)
+#endif
+
+#ifndef simpex_info
+#  define simpex_info(msg, ...) do { std::printf(msg "\n", ##__VA_ARGS__); } while(0)
+#endif
 
 // Check that results from SIMPEX and CGAL match
 namespace simpex
@@ -87,7 +108,7 @@ namespace simpex
     {
       dolfin_error("CGALExactArithmetic.h",
 		   "verify intersection",
-		   "Intersection function %s and CGAL give different size of point sets (%d vs %d)",
+		   "Intersection function %s and CGAL give different size of point sets (%zu vs %zu)",
 		   function.c_str(), dolfin_result.size(), cgal_result.size());
     }
 
@@ -121,7 +142,6 @@ namespace simpex
   cgal_intersection_check(RESULT_SIMPEX, RESULT_CGAL, __FUNCTION__)
 
 // CGAL includes
-#define CGAL_HEADER_ONLY
 #include <CGAL/Cartesian.h>
 #include <CGAL/Quotient.h>
 #include <CGAL/MP_Float.h>
@@ -135,7 +155,6 @@ namespace simpex
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/intersections.h>
-#include <CGAL/intersection_of_Polyhedra_3.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Triangulation_2.h>
 #include <CGAL/Nef_polyhedron_3.h>
@@ -368,7 +387,7 @@ namespace
   triangulate_polygon_3d(const std::vector<simpex::Point>& points)
   {
     // FIXME
-    simpex::dolfin_error("CGALExactArithmetic.h",
+    dolfin_error("CGALExactArithmetic.h",
 			 "triangulate_polygon_3d",
 			 "Not implemented");
     return std::vector<std::vector<simpex::Point>>();
@@ -538,37 +557,8 @@ namespace simpex
                                                        const Point& q2,
                                                        const Point& q3)
   {
-    // Check volume collisions
-    if (cgal_collides_tetrahedron_point_3d(p0, p1, p2, p3, q0)) return true;
-    if (cgal_collides_tetrahedron_point_3d(p0, p1, p2, p3, q1)) return true;
-    if (cgal_collides_tetrahedron_point_3d(p0, p1, p2, p3, q2)) return true;
-    if (cgal_collides_tetrahedron_point_3d(p0, p1, p2, p3, q3)) return true;
-    if (cgal_collides_tetrahedron_point_3d(q0, q1, q2, q3, p0)) return true;
-    if (cgal_collides_tetrahedron_point_3d(q0, q1, q2, q3, p1)) return true;
-    if (cgal_collides_tetrahedron_point_3d(q0, q1, q2, q3, p2)) return true;
-    if (cgal_collides_tetrahedron_point_3d(q0, q1, q2, q3, p3)) return true;
-
-    Polyhedron_3 tet_a;
-    tet_a.make_tetrahedron(convert_to_cgal_3d(p0),
-			   convert_to_cgal_3d(p1),
-			   convert_to_cgal_3d(p2),
-			   convert_to_cgal_3d(p3));
-
-    Polyhedron_3 tet_b;
-    tet_b.make_tetrahedron(convert_to_cgal_3d(q0),
-			   convert_to_cgal_3d(q1),
-			   convert_to_cgal_3d(q2),
-			   convert_to_cgal_3d(q3));
-
-    // Check for polyhedron intersection (recall that a polyhedron is
-    // only its vertices, edges and faces)
-    std::size_t cnt = 0;
-    CGAL::Counting_output_iterator out(&cnt);
-    CGAL::intersection_Polyhedron_3_Polyhedron_3<Polyhedron_3>(tet_a,
-							       tet_b,
-							       out);
-    // The tetrahedra does not intersect if cnt == 0
-    return cnt != 0;
+    return CGAL::do_intersect(convert_to_cgal_3d(p0, p1, p2, p3),
+                              convert_to_cgal_3d(q0, q1, q2, q3));
   }
   //----------------------------------------------------------------------------
   // Reference implementations of SIMPEX intersection triangulation
@@ -912,27 +902,6 @@ namespace simpex
     dolfin_assert(!is_degenerate_3d(p0, p1, p2, p3));
     dolfin_assert(!is_degenerate_3d(q0, q1, q2));
 
-    // const Tetrahedron_3 tet = convert_from_cgal(p0, p1, p2, p3);
-    // const Triangle_3 tri = convert_from_cgal(q0, q1, q2);
-
-    Polyhedron_3 tet;
-    tet.make_tetrahedron(convert_to_cgal_3d(p0),
-			 convert_to_cgal_3d(p1),
-			 convert_to_cgal_3d(p2),
-			 convert_to_cgal_3d(p3));
-    Polyhedron_3 tri;
-    tri.make_triangle(convert_to_cgal_3d(q0),
-		      convert_to_cgal_3d(q1),
-		      convert_to_cgal_3d(q2));
-
-    std::list<std::vector<Point_3> > triangulation;
-    CGAL::intersection_Polyhedron_3_Polyhedron_3(tet,
-						 tri,
-						 std::back_inserter(triangulation));
-
-    // FIXME: do we need to add interior point checks? Maybe
-    // Polyhedron_3 is only top dim 2?
-
     // Shouldn't get here
     dolfin_error("CGALExactArithmetic.h",
 		 "cgal_intersection_tetrahedron_triangle",
@@ -1012,7 +981,7 @@ namespace simpex
   {
     if (s.size() < 2 or s.size() > 3)
     {
-      info("Degenerate 2D simplex with %d vertices.", s.size());
+      simpex_info("Degenerate 2D simplex with %d vertices.", (int)s.size());
       return true;
     }
 
@@ -1034,7 +1003,7 @@ namespace simpex
   {
     if (s.size() < 2 or s.size() > 4)
     {
-      info("Degenerate 3D simplex with %d vertices.", s.size());
+      simpex_info("Degenerate 3D simplex with %d vertices.", (int)s.size());
       return true;
     }
 
