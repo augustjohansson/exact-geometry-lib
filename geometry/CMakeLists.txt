@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
-
-# Optional CGAL verification (for debugging)
+cmake_minimum_required(VERSION 3.10)
 option(GEOMETRY_ENABLE_CGAL_DEBUGGING "Enable CGAL-based verification of geometry predicates" OFF)
 
 set(GEOMETRY_SOURCES
