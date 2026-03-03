@@ -35,20 +35,8 @@
 #include "predicates.h"
 #include <vector>
 #include <algorithm>
-#include <sstream>
-#include <iomanip>
-#include <stdexcept>
 #include <cstdio>
 #include <cassert>
-
-#ifndef dolfin_error
-#  define dolfin_error(location, task, msg, ...) \
-     do { \
-       char _buf[512]; \
-       std::snprintf(_buf, sizeof(_buf), "Error in %s (%s): " msg, location, task, ##__VA_ARGS__); \
-       throw std::runtime_error(_buf); \
-     } while(0)
-#endif
 
 // Check that results from SIMPEX and CGAL match
 namespace simpex
@@ -63,17 +51,10 @@ namespace simpex
   {
     if (result_simpex != result_cgal)
     {
-      // Convert results to strings
-      std::stringstream s_dolfin;
-      std::stringstream s_cgal;
-      s_dolfin << result_simpex;
-      s_cgal << result_cgal;
-
-      // Issue error
-      dolfin_error("CGALExactArithmetic.h",
-                   "verify geometric predicate with exact types",
-                   "Error in predicate %s\n SIMPEX: %s\n CGAL: %s",
-                   function.c_str(), s_dolfin.str().c_str(), s_cgal.str().c_str());
+      // Print mismatch details before asserting
+      std::printf("CGAL mismatch in %s: SIMPEX=%d CGAL=%d\n",
+                  function.c_str(), (int)result_simpex, (int)result_cgal);
+      assert(false); // SIMPEX and CGAL disagree on predicate result
     }
 
     return result_simpex;
@@ -87,10 +68,9 @@ namespace simpex
   {
     if (dolfin_result.size() != cgal_result.size())
     {
-      dolfin_error("CGALExactArithmetic.h",
-		   "verify intersection",
-		   "Intersection function %s and CGAL give different size of point sets (%zu vs %zu)",
-		   function.c_str(), dolfin_result.size(), cgal_result.size());
+      std::printf("Intersection size mismatch in %s: simpex=%zu cgal=%zu\n",
+                  function.c_str(), dolfin_result.size(), cgal_result.size());
+      assert(false); // intersection point-set size differs between SIMPEX and CGAL
     }
 
     for (const Point& p1 : dolfin_result)
@@ -106,10 +86,11 @@ namespace simpex
       }
 
       if (!found)
-	dolfin_error("CGALExactArithmetic.h",
-		     "verify intersection construction result",
-		     "Error in intersection function %s\nPoint (%f, %f, %f) in dolfin result not found",
-		     function.c_str(), p1[0], p1[1], p1[2]);
+      {
+        std::printf("Point (%f,%f,%f) from SIMPEX not found in CGAL result (%s)\n",
+                    p1[0], p1[1], p1[2], function.c_str());
+        assert(false); // intersection point present in SIMPEX but not in CGAL result
+      }
     }
     return dolfin_result;
   }
@@ -139,6 +120,12 @@ namespace simpex
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Triangulation_2.h>
 #include <CGAL/Nef_polyhedron_3.h>
+
+// CGAL 5.x uses boost::variant for intersection results; provide a uniform
+// get_if<T> wrapper that delegates to boost::get<T>.
+#include <boost/variant.hpp>
+template<typename T, typename V>
+static const T* cgal_get_if(const V* v) { return boost::get<T>(v); }
 
 namespace
 {
@@ -368,9 +355,7 @@ namespace
   triangulate_polygon_3d(const std::vector<simpex::Point>& points)
   {
     // FIXME
-    dolfin_error("CGALExactArithmetic.h",
-			 "triangulate_polygon_3d",
-			 "Not implemented");
+    assert(false); // not implemented / unexpected
     return std::vector<std::vector<simpex::Point>>();
   }
   //-----------------------------------------------------------------------------
@@ -559,19 +544,17 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(I0, I1))
     {
-      if (const Point_2* p = std::get_if<Point_2>(&*ii))
+      if (const Point_2* p = cgal_get_if<Point_2>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
+      else if (const Segment_2* s = cgal_get_if<Segment_2>(&*ii))
       {
         return convert_from_cgal(*s);
       }
       else
       {
-        dolfin_error("CGALExactArithmetic.h",
-                     "cgal_intersection_segment_segment_2d",
-                     "Unexpected behavior");
+        assert(false); // not implemented / unexpected
       }
     }
 
@@ -592,19 +575,17 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(I0, I1))
     {
-      if (const Point_3* p = std::get_if<Point_3>(&*ii))
+      if (const Point_3* p = cgal_get_if<Point_3>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
+      else if (const Segment_3* s = cgal_get_if<Segment_3>(&*ii))
       {
         return convert_from_cgal(*s);
       }
       else
       {
-        dolfin_error("CGALExactArithmetic.h",
-                     "cgal_intersection_segment_segment_3d",
-                     "Unexpected behavior");
+        assert(false); // not implemented / unexpected
       }
     }
 
@@ -644,19 +625,17 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T, I))
     {
-      if (const Point_2* p = std::get_if<Point_2>(&*ii))
+      if (const Point_2* p = cgal_get_if<Point_2>(&*ii))
       {
         return std::vector<Point>{convert_from_cgal(*p)};
       }
-      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
+      else if (const Segment_2* s = cgal_get_if<Segment_2>(&*ii))
       {
         return convert_from_cgal(*s);
       }
       else
       {
-        dolfin_error("CGALExactArithmetic.h",
-                     "cgal_intersection_triangle_segment_2d",
-                     "Unexpected behavior");
+        assert(false); // not implemented / unexpected
       }
     }
 
@@ -678,15 +657,13 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T, I))
     {
-      if (const Point_3* p = std::get_if<Point_3>(&*ii))
+      if (const Point_3* p = cgal_get_if<Point_3>(&*ii))
         return std::vector<Point>{convert_from_cgal(*p)};
-      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
+      else if (const Segment_3* s = cgal_get_if<Segment_3>(&*ii))
         return convert_from_cgal(*s);
       else
       {
-        dolfin_error("CGALExactArithmetic.h",
-                     "cgal_intersection_triangle_segment_3d",
-                     "Unexpected behavior");
+        assert(false); // not implemented / unexpected
       }
     }
 
@@ -730,19 +707,19 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T0, T1))
     {
-      if (const Point_2* p = std::get_if<Point_2>(&*ii))
+      if (const Point_2* p = cgal_get_if<Point_2>(&*ii))
       {
         intersection.push_back(convert_from_cgal(*p));
       }
-      else if (const Segment_2* s = std::get_if<Segment_2>(&*ii))
+      else if (const Segment_2* s = cgal_get_if<Segment_2>(&*ii))
       {
         intersection = convert_from_cgal(*s);
       }
-      else if (const Triangle_2* t = std::get_if<Triangle_2>(&*ii))
+      else if (const Triangle_2* t = cgal_get_if<Triangle_2>(&*ii))
       {
         intersection = convert_from_cgal(*t);;
       }
-      else if (const std::vector<Point_2>* cgal_points = std::get_if<std::vector<Point_2>>(&*ii))
+      else if (const std::vector<Point_2>* cgal_points = cgal_get_if<std::vector<Point_2>>(&*ii))
       {
         for (Point_2 p : *cgal_points)
         {
@@ -751,17 +728,13 @@ namespace simpex
       }
       else
       {
-      	dolfin_error("CGALExactArithmetic.h",
-		     "cgal_intersection_triangle_triangle_2d",
-		     "Unexpected behavior");
+      	assert(false); // not implemented / unexpected
       }
 
       // NB: the parsing can return triangulation of size 0, for example
       // if it detected a triangle but it was found to be flat.
       /* if (triangulation.size() == 0) */
-      /*   dolfin_error("CGALExactArithmetic.h", */
-      /*                "find intersection of two triangles in cgal_intersection_triangle_triangle function", */
-      /*                "no intersection found"); */
+      /*   assert(false); // not implemented / unexpected */
     }
 
     return intersection;
@@ -784,19 +757,19 @@ namespace simpex
 
     if (const auto ii = CGAL::intersection(T0, T1))
     {
-      if (const Point_3* p = std::get_if<Point_3>(&*ii))
+      if (const Point_3* p = cgal_get_if<Point_3>(&*ii))
       {
         intersection.push_back(convert_from_cgal(*p));
       }
-      else if (const Segment_3* s = std::get_if<Segment_3>(&*ii))
+      else if (const Segment_3* s = cgal_get_if<Segment_3>(&*ii))
       {
         intersection = convert_from_cgal(*s);
       }
-      else if (const Triangle_3* t = std::get_if<Triangle_3>(&*ii))
+      else if (const Triangle_3* t = cgal_get_if<Triangle_3>(&*ii))
       {
         intersection = convert_from_cgal(*t);;
       }
-      else if (const std::vector<Point_3>* cgal_points = std::get_if<std::vector<Point_3>>(&*ii))
+      else if (const std::vector<Point_3>* cgal_points = cgal_get_if<std::vector<Point_3>>(&*ii))
       {
         for (Point_3 p : *cgal_points)
         {
@@ -805,9 +778,7 @@ namespace simpex
       }
       else
       {
-        dolfin_error("CGALExactArithmetic.h",
-                     "cgal_intersection_triangle_triangle_3d",
-                     "Unexpected behavior");
+        assert(false); // not implemented / unexpected
       }
     }
 
@@ -884,9 +855,7 @@ namespace simpex
     assert(!is_degenerate_3d(q0, q1, q2));
 
     // Shouldn't get here
-    dolfin_error("CGALExactArithmetic.h",
-		 "cgal_intersection_tetrahedron_triangle",
-		 "Not implemented");
+    assert(false); // not implemented / unexpected
 
     return std::vector<Point>();
   }
@@ -907,9 +876,7 @@ namespace simpex
       cgal_intersection_tetrahedron_triangle(p0, p1, p2, p3, q0, q1, q2);
 
     // Shouldn't get here
-    dolfin_error("CGALExactArithmetic.h",
-		 "cgal_triangulation_tetrahedron_triangle",
-		 "Not implemented");
+    assert(false); // not implemented / unexpected
 
     return std::vector<std::vector<Point>>();
   }
@@ -973,9 +940,7 @@ namespace simpex
     }
 
     // Shouldn't get here
-    dolfin_error("CGALExactArithmetic.h",
-                 "call cgal_is_degenerate_2d",
-                 "Only implemented for simplices of tdim 0, 1 and 2, not tdim = %d", s.size() - 1);
+    assert(false); // not implemented / unexpected
 
     return true;
   }
@@ -996,9 +961,7 @@ namespace simpex
     }
 
     // Shouldn't get here
-    dolfin_error("CGALExactArithmetic.h",
-                 "call cgal_is_degenerate_3d",
-                 "Only implemented for simplices of tdim 0, 1, 2 and 3, not tdim = %d", s.size() - 1);
+    assert(false); // not implemented / unexpected
 
     return true;
   }

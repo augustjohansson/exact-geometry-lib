@@ -279,6 +279,23 @@ namespace simpex
                                                      const Point& q1,
                                                      const Point& q2,
                                                      const Point& q3);
+
+    // Helper: point-in-triangle assuming the point is already in the triangle's plane
+    // (skips the orient3d coplanarity check).
+    static bool _collides_triangle_point_3d_in_plane(const Point& p0,
+                                                      const Point& p1,
+                                                      const Point& p2,
+                                                      const Point& point);
+
+    // Helper: triangle-segment collision with pre-computed plane orientations
+    // rsta = orient3d(r,s,t,a), rstb = orient3d(r,s,t,b)
+    static bool _collides_triangle_segment_3d_with_hint(const Point& r,
+                                                         const Point& s,
+                                                         const Point& t,
+                                                         const Point& a,
+                                                         const Point& b,
+                                                         double rsta,
+                                                         double rstb);
   };
 
 }

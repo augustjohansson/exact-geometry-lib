@@ -26,11 +26,18 @@ namespace _cgal {
   using K    = CGAL::Exact_predicates_inexact_constructions_kernel;
   using P2   = K::Point_2;
   using P3   = K::Point_3;
+  using Seg2 = K::Segment_2;
+  using Seg3 = K::Segment_3;
+  using Tri2 = K::Triangle_2;
   using Tri3 = K::Triangle_3;
   using Tet3 = K::Tetrahedron_3;
 
   inline P2   to2(const Point& p) { return P2(p.x(), p.y()); }
   inline P3   to3(const Point& p) { return P3(p.x(), p.y(), p.z()); }
+  inline Seg2 seg2(const Point& a, const Point& b) { return Seg2(to2(a), to2(b)); }
+  inline Seg3 seg3(const Point& a, const Point& b) { return Seg3(to3(a), to3(b)); }
+  inline Tri2 tri2(const Point& a, const Point& b, const Point& c)
+  { return Tri2(to2(a), to2(b), to2(c)); }
   inline Tri3 tri(const Point& a, const Point& b, const Point& c)
   { return Tri3(to3(a), to3(b), to3(c)); }
   inline Tet3 tet(const Point& a, const Point& b, const Point& c, const Point& d)
@@ -70,6 +77,47 @@ inline double cgal_orient3d(const Point& a, const Point& b,
 // Collision predicates — all use CGAL::do_intersect (EPICK)
 // ---------------------------------------------------------------------------
 
+/// 2D segment-point collision.
+inline bool cgal_collides_segment_point_2d(const Point& p0, const Point& p1, const Point& q)
+{ return CGAL::do_intersect(_cgal::seg2(p0, p1), _cgal::to2(q)); }
+
+/// 3D segment-point collision.
+inline bool cgal_collides_segment_point_3d(const Point& p0, const Point& p1, const Point& q)
+{ return CGAL::do_intersect(_cgal::seg3(p0, p1), _cgal::to3(q)); }
+
+/// 2D segment-segment collision.
+inline bool cgal_collides_segment_segment_2d(
+    const Point& p0, const Point& p1, const Point& q0, const Point& q1)
+{ return CGAL::do_intersect(_cgal::seg2(p0, p1), _cgal::seg2(q0, q1)); }
+
+/// 3D segment-segment collision.
+inline bool cgal_collides_segment_segment_3d(
+    const Point& p0, const Point& p1, const Point& q0, const Point& q1)
+{ return CGAL::do_intersect(_cgal::seg3(p0, p1), _cgal::seg3(q0, q1)); }
+
+/// 2D triangle-point collision.
+inline bool cgal_collides_triangle_point_2d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& q)
+{ return CGAL::do_intersect(_cgal::tri2(p0, p1, p2), _cgal::to2(q)); }
+
+/// 2D triangle-segment collision.
+inline bool cgal_collides_triangle_segment_2d(
+    const Point& p0, const Point& p1, const Point& p2,
+    const Point& q0, const Point& q1)
+{ return CGAL::do_intersect(_cgal::tri2(p0, p1, p2), _cgal::seg2(q0, q1)); }
+
+/// 3D triangle-segment collision.
+inline bool cgal_collides_triangle_segment_3d(
+    const Point& p0, const Point& p1, const Point& p2,
+    const Point& q0, const Point& q1)
+{ return CGAL::do_intersect(_cgal::tri(p0, p1, p2), _cgal::seg3(q0, q1)); }
+
+/// 2D triangle-triangle collision.
+inline bool cgal_collides_triangle_triangle_2d(
+    const Point& p0, const Point& p1, const Point& p2,
+    const Point& q0, const Point& q1, const Point& q2)
+{ return CGAL::do_intersect(_cgal::tri2(p0, p1, p2), _cgal::tri2(q0, q1, q2)); }
+
 /// Check whether two 3D triangles intersect.
 inline bool cgal_collides_triangle_triangle_3d(
     const Point& p0, const Point& p1, const Point& p2,
@@ -101,6 +149,22 @@ inline bool cgal_collides_tetrahedron_point_3d(
     const Point& q)
 {
   return CGAL::do_intersect(_cgal::tet(p0, p1, p2, p3), _cgal::to3(q));
+}
+
+/// Check whether a 3D tetrahedron intersects a segment.
+inline bool cgal_collides_tetrahedron_segment_3d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+    const Point& q0, const Point& q1)
+{
+  return CGAL::do_intersect(_cgal::tet(p0, p1, p2, p3), _cgal::seg3(q0, q1));
+}
+
+/// Check whether a 3D tetrahedron intersects a triangle.
+inline bool cgal_collides_tetrahedron_triangle_3d(
+    const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+    const Point& q0, const Point& q1, const Point& q2)
+{
+  return CGAL::do_intersect(_cgal::tet(p0, p1, p2, p3), _cgal::tri(q0, q1, q2));
 }
 
 } // namespace simpex
