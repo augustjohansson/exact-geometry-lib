@@ -657,8 +657,6 @@ IntersectionConstruction::_intersection_tetrahedron_tetrahedron_3d(const Point& 
   add(points, intersection_tetrahedron_point_3d(q0, q1, q2, q3, p2));
   add(points, intersection_tetrahedron_point_3d(q0, q1, q2, q3, p3));
 
-  // Let's hope we got this right... :-)
-
   // Add triangle-segment intersections (4 x 6 + 4 x 6 = 48)
   add(points, intersection_triangle_segment_3d(p0, p1, p2, q0, q1));
   add(points, intersection_triangle_segment_3d(p0, p1, p2, q0, q2));
