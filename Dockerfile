@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ccache \
     cmake \
     libeigen3-dev \
     libcgal-dev \
@@ -13,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/lib/ccache:${PATH}"
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --break-system-packages \
