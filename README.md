@@ -7,6 +7,7 @@ A standalone C++ geometry library providing:
 - **Convex triangulation** via Graham scan
 - **Simplex quadrature** generation (1D, 2D, 3D)
 - **Python bindings** via pybind11
+- **Performance benchmarks** comparing Shewchuk's predicates vs CGAL (EPICK)
 
 The predicates are based on Jonathan Richard Shewchuk's robust geometric predicates.
 
@@ -17,6 +18,7 @@ Requires:
 - C++11 compiler
 - Eigen3 (header-only library; install system-wide via e.g. `apt-get install libeigen3-dev`)
 - pybind11 (optional, for Python bindings; install via `pip install pybind11`)
+- CGAL (optional, for benchmarks and CGAL Python functions; install via `apt-get install libcgal-dev`)
 
 ```bash
 mkdir build && cd build
@@ -93,6 +95,31 @@ pts, wts = sq.compute_quadrature_rule_triangle(coords, 2)
 | `CGALExactArithmetic.h` | Optional CGAL verification (disabled by default) |
 | `python/bindings.cpp` | pybind11 Python bindings |
 | `python/tests/` | Python test suite |
+| `bench/performance.cpp` | C++ performance benchmark (Shewchuk vs CGAL) |
+| `bench/bench_performance.py` | Python performance benchmark (Shewchuk vs CGAL) |
+
+## Performance Benchmarks
+
+The `bench/` directory contains benchmarks comparing Shewchuk's exact predicates against
+CGAL's `Exact_predicates_inexact_constructions_kernel` (EPICK).
+
+**C++ benchmark** (built automatically when CGAL is available):
+
+```bash
+./build/bench/geometry_bench
+```
+
+**Python benchmark**:
+
+```bash
+python3 bench/bench_performance.py
+```
+
+Both benchmarks measure `orient2d`, `orient3d`, triangle-triangle collision,
+and tetrahedron-tetrahedron collision. The C++ benchmark also exposes CGAL
+orientation and do_intersect functions through the Python bindings
+(`geometry.cgal_orient2d`, `geometry.cgal_collides_tetrahedron_tetrahedron_3d`, etc.)
+when CGAL is available (`geometry.CGAL_AVAILABLE == True`).
 
 ## Optional CGAL Verification
 

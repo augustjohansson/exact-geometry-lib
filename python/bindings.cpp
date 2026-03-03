@@ -4,10 +4,23 @@
 #include <pybind11/stl.h>
 
 #include "../geometry/Point.h"
+#include "../geometry/predicates.h"
 #include "../geometry/CollisionPredicates.h"
 #include "../geometry/IntersectionConstruction.h"
 #include "../geometry/ConvexTriangulation.h"
 #include "../geometry/SimplexQuadrature.h"
+
+#ifdef GEOMETRY_WITH_CGAL
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/intersections.h>
+namespace {
+  typedef CGAL::Exact_predicates_inexact_constructions_kernel CGALKernel;
+  typedef CGALKernel::Point_2      CGALPoint2;
+  typedef CGALKernel::Point_3      CGALPoint3;
+  typedef CGALKernel::Triangle_3   CGALTriangle3;
+  typedef CGALKernel::Tetrahedron_3 CGALTet3;
+}
+#endif
 
 namespace py = pybind11;
 using namespace dolfin;
@@ -179,4 +192,75 @@ PYBIND11_MODULE(geometry, m)
                    std::size_t gdim, std::size_t order) {
                   return SimplexQuadrature::compress(qr, gdim, order);
                 });
+
+  // -------------------------------------------------------------------------
+  // Shewchuk predicates (free functions)
+  // -------------------------------------------------------------------------
+  m.def("orient2d",
+        [](const Point& a, const Point& b, const Point& c) {
+          return orient2d(a, b, c);
+        },
+        "Shewchuk orient2d: > 0 if a,b,c are counter-clockwise.");
+
+  m.def("orient3d",
+        [](const Point& a, const Point& b, const Point& c, const Point& d) {
+          return orient3d(a, b, c, d);
+        },
+        "Shewchuk orient3d: > 0 if a,b,c,d satisfy the left-hand rule.");
+
+#ifdef GEOMETRY_WITH_CGAL
+  // -------------------------------------------------------------------------
+  // CGAL predicates (free functions, available when built with CGAL)
+  // -------------------------------------------------------------------------
+  m.def("cgal_orient2d",
+        [](const Point& a, const Point& b, const Point& c) -> double {
+          CGALPoint2 ca(a.x(), a.y());
+          CGALPoint2 cb(b.x(), b.y());
+          CGALPoint2 cc(c.x(), c.y());
+          return static_cast<double>(CGAL::orientation(ca, cb, cc));
+        },
+        "CGAL orient2d (EPICK): returns the orientation sign.");
+
+  m.def("cgal_orient3d",
+        [](const Point& a, const Point& b, const Point& c, const Point& d) -> double {
+          CGALPoint3 ca(a.x(), a.y(), a.z());
+          CGALPoint3 cb(b.x(), b.y(), b.z());
+          CGALPoint3 cc(c.x(), c.y(), c.z());
+          CGALPoint3 cd(d.x(), d.y(), d.z());
+          return static_cast<double>(CGAL::orientation(ca, cb, cc, cd));
+        },
+        "CGAL orient3d (EPICK): returns the orientation sign.");
+
+  m.def("cgal_collides_triangle_triangle_3d",
+        [](const Point& p0, const Point& p1, const Point& p2,
+           const Point& q0, const Point& q1, const Point& q2) -> bool {
+          CGALTriangle3 t1(CGALPoint3(p0.x(), p0.y(), p0.z()),
+                           CGALPoint3(p1.x(), p1.y(), p1.z()),
+                           CGALPoint3(p2.x(), p2.y(), p2.z()));
+          CGALTriangle3 t2(CGALPoint3(q0.x(), q0.y(), q0.z()),
+                           CGALPoint3(q1.x(), q1.y(), q1.z()),
+                           CGALPoint3(q2.x(), q2.y(), q2.z()));
+          return CGAL::do_intersect(t1, t2);
+        },
+        "CGAL do_intersect for two 3D triangles (EPICK).");
+
+  m.def("cgal_collides_tetrahedron_tetrahedron_3d",
+        [](const Point& p0, const Point& p1, const Point& p2, const Point& p3,
+           const Point& q0, const Point& q1, const Point& q2, const Point& q3) -> bool {
+          CGALTet3 t1(CGALPoint3(p0.x(), p0.y(), p0.z()),
+                      CGALPoint3(p1.x(), p1.y(), p1.z()),
+                      CGALPoint3(p2.x(), p2.y(), p2.z()),
+                      CGALPoint3(p3.x(), p3.y(), p3.z()));
+          CGALTet3 t2(CGALPoint3(q0.x(), q0.y(), q0.z()),
+                      CGALPoint3(q1.x(), q1.y(), q1.z()),
+                      CGALPoint3(q2.x(), q2.y(), q2.z()),
+                      CGALPoint3(q3.x(), q3.y(), q3.z()));
+          return CGAL::do_intersect(t1, t2);
+        },
+        "CGAL do_intersect for two 3D tetrahedra (EPICK).");
+
+  m.attr("CGAL_AVAILABLE") = true;
+#else
+  m.attr("CGAL_AVAILABLE") = false;
+#endif
 }

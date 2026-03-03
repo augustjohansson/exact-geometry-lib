@@ -4,6 +4,7 @@ project(exact-geometry-lib VERSION 1.0.0 LANGUAGES CXX)
 # Options
 option(BUILD_TESTING "Build tests" ON)
 option(BUILD_PYTHON "Build Python bindings" ON)
+option(BUILD_BENCHMARKS "Build performance benchmarks (requires CGAL)" ON)
 
 # Add geometry library
 add_subdirectory(geometry)
@@ -11,6 +12,11 @@ add_subdirectory(geometry)
 # Add Python bindings
 if(BUILD_PYTHON)
   add_subdirectory(python)
+endif()
+
+# Add benchmarks
+if(BUILD_BENCHMARKS)
+  add_subdirectory(bench)
 endif()
 
 # Add tests
