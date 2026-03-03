@@ -144,8 +144,8 @@ namespace simpex
 		   y*c + cy*s + ay*dot*one_c,
 		   z*c + cz*s + az*dot*one_c);
     }
-      
-    std::string str(bool verbose=false) const
+
+    std::string str() const
     {
       std::stringstream ss;
       ss << x() << ' ' << y() << ' ' << z();
@@ -160,8 +160,8 @@ namespace simpex
   { return p * a; }
 
   inline std::ostream& operator<<(std::ostream& stream, const Point& point)
-  { stream << point.str(false); return stream; }
+  { return stream << point.x() << ' ' << point.y() << ' ' << point.z(); }
 
-} 
+}
 
 #endif
