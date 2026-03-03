@@ -57,20 +57,15 @@ print(CollisionPredicates.collides_segment_point_2d(p0, p1, pt))  # True
 
 import simpex
 if simpex.CGAL_AVAILABLE:
-    print(simpex.cgal_collides_triangle_triangle_3d(p0, p1, pt, p0, p1, pt))
+	print(simpex.cgal_collides_triangle_triangle_3d(p0, p1, pt, p0, p1, pt))
 ```
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `geometry/CGALPredicates.h` | CGAL EPICK collision predicates (requires CGAL) |
-| `geometry/CGALExactArithmetic.h` | CGAL exact-arithmetic verification (requires `-DGEOMETRY_ENABLE_CGAL_DEBUGGING=ON`) |
-| `geometry/CollisionPredicates.h/cpp` | Collision detection (Shewchuk) |
-| `geometry/predicates.h/cpp` | orient2d, orient3d |
-| `test/CGALComparison.cpp` | Catch2 tests: CGAL vs Shewchuk agreement |
-| `bench/performance.cpp` | C++ timing + correctness benchmark |
 
 ## License
 
-LGPL v3
+The code for this library is largely directly copied from DOLFIN (https://bitbucket.org/fenics-project/dolfin/).
+
+DOLFIN is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+DOLFIN is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with DOLFIN. If not, see <https://www.gnu.org/licenses/>.
