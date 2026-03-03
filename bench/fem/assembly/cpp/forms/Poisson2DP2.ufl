@@ -1,0 +1,10 @@
+from ufl_legacy import (dx, FiniteElement,
+                 dot, grad,
+                 triangle, TestFunction, TrialFunction)
+
+element = FiniteElement("Lagrange", triangle, 2)
+
+v = TestFunction(element)
+u = TrialFunction(element)
+
+a = dot(grad(v), grad(u))*dx
