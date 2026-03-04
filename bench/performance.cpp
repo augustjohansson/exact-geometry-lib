@@ -23,7 +23,7 @@
 #include "../geometry/Point.h"
 #include "../geometry/CollisionPredicates.h"
 
-// CGAL predicates (requires -DGEOMETRY_WITH_CGAL)
+// CGAL predicates (requires -DSIMPEX_WITH_CGAL)
 #include "../geometry/CGALPredicates.h"
 
 using namespace simpex;

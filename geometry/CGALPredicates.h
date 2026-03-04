@@ -3,14 +3,14 @@
 // Provides well-optimized CGAL-based geometry predicates that mirror the
 // Shewchuk API in CollisionPredicates.h / predicates.h.
 //
-// Available only when compiled with -DGEOMETRY_WITH_CGAL.
+// Available only when compiled with -DSIMPEX_WITH_CGAL.
 // Uses CGAL::Exact_predicates_inexact_constructions_kernel (EPICK) throughout.
 // All collision tests use CGAL::do_intersect -- no general Polyhedron routines.
 
 #ifndef SIMPEX_CGAL_PREDICATES_H
 #define SIMPEX_CGAL_PREDICATES_H
 
-#ifdef GEOMETRY_WITH_CGAL
+#ifdef SIMPEX_WITH_CGAL
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/intersections.h>
@@ -169,5 +169,5 @@ inline bool cgal_collides_tetrahedron_triangle_3d(
 
 } // namespace simpex
 
-#endif // GEOMETRY_WITH_CGAL
+#endif // SIMPEX_WITH_CGAL
 #endif // SIMPEX_CGAL_PREDICATES_H

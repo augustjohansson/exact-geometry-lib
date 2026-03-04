@@ -846,10 +846,6 @@ bool CollisionPredicates::_collides_tetrahedron_segment_3d(const Point& p0,
       _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  fo0_q0,  fo0_q1)) return true;
 
   return false;
-
-
-
-
 }
 //-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_tetrahedron_triangle_3d(const Point& p0,

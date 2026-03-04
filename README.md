@@ -32,11 +32,38 @@ brew install cgal                  # macOS
 
 Then build normally — CMake detects CGAL automatically.
 
-To enable CGAL-based internal debugging of collision predicates:
+To enable CGAL-based internal verification of collision predicates:
 
 ```bash
-cmake .. -DGEOMETRY_ENABLE_CGAL_DEBUGGING=ON
+cmake .. -DSIMPEX_ENABLE_CGAL_DEBUGGING=ON
 ```
+
+## CMake Options
+
+| Option                        | Default | Description                                                           |
+|-------------------------------|---------|-----------------------------------------------------------------------|
+| `SIMPEX_NATIVE_ARCH`          | ON      | Enable `-march=native` (not portable across machines).                |
+| `SIMPEX_WARNINGS`             | ON      | Enable strict compiler warnings.                                      |
+| `SIMPEX_ENABLE_CGAL_DEBUGGING`| ON      | Enable CGAL-based verification of geometry predicates (requires CGAL).|
+| `BUILD_TESTING`               | ON      | Build unit tests.                                                     |
+| `BUILD_PYTHON`                | ON      | Build Python bindings (requires pybind11).                            |
+| `BUILD_BENCHMARKS`            | ON      | Build C++ performance benchmark (requires CGAL).                      |
+
+## Tolerances
+
+The library uses the following hard-coded tolerance values.  Users integrating
+simpex into applications with extreme coordinate magnitudes should be aware of
+these thresholds.
+
+| Location                                         | Value   | Purpose                                                                                      |
+|--------------------------------------------------|---------|----------------------------------------------------------------------------------------------|
+| `geometry/ConvexTriangulation.cpp` (two places)  | `1e-14` | Orientation test threshold for detecting coplanar face normals and checking triangulation volume accuracy. |
+| `geometry/CGALExactArithmetic.h`                 | `1e-15` | Coincident-point guard when converting simplex vertices to CGAL exact points.                |
+
+All other predicates (orient2d, orient3d, in-circle, in-sphere) use
+Shewchuk's adaptive exact arithmetic, which has no fixed tolerance:
+results are computed to full floating-point precision with an adaptively
+chosen precision for boundary cases.
 
 ## Running
 
@@ -57,7 +84,7 @@ print(CollisionPredicates.collides_segment_point_2d(p0, p1, pt))  # True
 
 import simpex
 if simpex.CGAL_AVAILABLE:
-	print(simpex.cgal_collides_triangle_triangle_3d(p0, p1, pt, p0, p1, pt))
+    print(simpex.cgal_collides_triangle_triangle_3d(p0, p1, pt, p0, p1, pt))
 ```
 
 ## License

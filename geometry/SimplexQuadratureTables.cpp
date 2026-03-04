@@ -3063,7 +3063,7 @@ RuleRef interval_rule_legendre(std::size_t order)
       e.second[i]  = w[i] * 0.5;
     }
   }
-  return { e.second.size(), e.first.data(), e.second.data() };
+  return { e.first, e.second };
 }
 
 RuleRef triangle_rule_dunavant(std::size_t order)
@@ -3088,7 +3088,7 @@ RuleRef triangle_rule_dunavant(std::size_t order)
       e.second[i] = w[i] * 0.5;
     }
   }
-  return { e.second.size(), e.first.data(), e.second.data() };
+  return { e.first, e.second };
 }
 
 RuleRef tetra_rule_keast(std::size_t order)
@@ -3219,7 +3219,7 @@ RuleRef tetra_rule_keast(std::size_t order)
       e.first[3*i + 2] = pts[i].t;
     }
   }
-  return { e.second.size(), e.first.data(), e.second.data() };
+  return { e.first, e.second };
 }
 
 } // namespace simpex::tables

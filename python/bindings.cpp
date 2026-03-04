@@ -10,7 +10,7 @@
 #include "../geometry/ConvexTriangulation.h"
 #include "../geometry/SimplexQuadrature.h"
 
-#ifdef GEOMETRY_WITH_CGAL
+#ifdef SIMPEX_WITH_CGAL
 #include "../geometry/CGALPredicates.h"
 #endif
 
@@ -200,7 +200,7 @@ PYBIND11_MODULE(simpex, m)
         },
         "Shewchuk orient3d: > 0 if a,b,c,d satisfy the left-hand rule.");
 
-#ifdef GEOMETRY_WITH_CGAL
+#ifdef SIMPEX_WITH_CGAL
   // -------------------------------------------------------------------------
   // CGAL predicates (free functions, available when built with CGAL)
   // Uses CGAL::do_intersect / CGAL::orientation via CGALPredicates.h

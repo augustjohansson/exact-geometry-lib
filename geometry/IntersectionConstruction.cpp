@@ -18,22 +18,58 @@
 // First added:  2014-02-03
 // Last changed: 2017-12-12
 
-#include <iomanip>
+#include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <iomanip>
 #include <stdexcept>
-#include "predicates.h"
+#include "CGALExactArithmetic.h"
+#include "CollisionPredicates.h"
 #include "GeometryPredicates.h"
 #include "GeometryTools.h"
-#include "GeometryDebugging.h"
-#include "CollisionPredicates.h"
 #include "IntersectionConstruction.h"
-#include "CGALExactArithmetic.h"
-#include <algorithm>
+#include "predicates.h"
 
 using namespace simpex;
 
 namespace
 {
+  // Return the index of the largest absolute component of v (2D).
+  inline std::size_t major_axis_2d(const Point& v)
+  {
+    return (std::abs(v.x()) >= std::abs(v.y()) ? 0 : 1);
+  }
+
+  // Return the index of the largest absolute component of v (3D).
+  inline std::size_t major_axis_3d(const Point& v)
+  {
+    const double vx = std::abs(v.x());
+    const double vy = std::abs(v.y());
+    const double vz = std::abs(v.z());
+    if (vx >= vy && vx >= vz) return 0;
+    if (vy >= vz) return 1;
+    return 2;
+  }
+
+  // Project p onto the given axis coordinate (2D).
+  inline double project_to_axis_2d(const Point& p, std::size_t axis)
+  {
+    assert(axis <= 1);
+    return p[axis];
+  }
+
+  // Drop the given axis coordinate from p, returning a 2D point.
+  inline Point project_to_plane_3d(const Point& p, std::size_t axis)
+  {
+    assert(axis <= 2);
+    switch (axis)
+    {
+    case 0: return Point(p.y(), p.z());
+    case 1: return Point(p.x(), p.z());
+    default: return Point(p.x(), p.y());
+    }
+  }
+
   // Add points to vector
   template <typename T>
   inline void add(std::vector<T>& points,
@@ -250,13 +286,13 @@ IntersectionConstruction::intersection_segment_segment_2d(const Point& p0,
 
   // Compute line vector and major axis
   const Point v = p1 - p0;
-  const std::size_t major_axis = GeometryTools::major_axis_2d(v);
+  const std::size_t major_axis = major_axis_2d(v);
 
   // Project points to major axis
-  const double P0 = GeometryTools::project_to_axis_2d(p0, major_axis);
-  const double P1 = GeometryTools::project_to_axis_2d(p1, major_axis);
-  const double Q0 = GeometryTools::project_to_axis_2d(q0, major_axis);
-  const double Q1 = GeometryTools::project_to_axis_2d(q1, major_axis);
+  const double P0 = project_to_axis_2d(p0, major_axis);
+  const double P1 = project_to_axis_2d(p1, major_axis);
+  const double Q0 = project_to_axis_2d(q0, major_axis);
+  const double Q1 = project_to_axis_2d(q1, major_axis);
 
   // Case 2: both points on line (or almost)
   if (std::abs(q0o) < 3.0e-16 and std::abs(q1o) < 3.0e-16)
@@ -328,7 +364,7 @@ IntersectionConstruction::intersection_segment_segment_2d(const Point& p0,
   }
 
   // Project point to major axis and check if inside segment
-  const double X = GeometryTools::project_to_axis_2d(x, major_axis);
+  const double X = project_to_axis_2d(x, major_axis);
   if (CollisionPredicates::collides_segment_point_1d(P0, P1, X))
     return std::vector<Point>(1, x);
 
@@ -421,14 +457,14 @@ IntersectionConstruction::_intersection_triangle_segment_3d(const Point& p0,
 
   // Compute plane normal and major axis
   const Point n = GeometryTools::cross_product(p0, p1, p2);
-  const std::size_t major_axis = GeometryTools::major_axis_3d(n);
+  const std::size_t major_axis = major_axis_3d(n);
 
   // Project points to major axis plane
-  const Point P0 = GeometryTools::project_to_plane_3d(p0, major_axis);
-  const Point P1 = GeometryTools::project_to_plane_3d(p1, major_axis);
-  const Point P2 = GeometryTools::project_to_plane_3d(p2, major_axis);
-  const Point Q0 = GeometryTools::project_to_plane_3d(q0, major_axis);
-  const Point Q1 = GeometryTools::project_to_plane_3d(q1, major_axis);
+  const Point P0 = project_to_plane_3d(p0, major_axis);
+  const Point P1 = project_to_plane_3d(p1, major_axis);
+  const Point P2 = project_to_plane_3d(p2, major_axis);
+  const Point Q0 = project_to_plane_3d(q0, major_axis);
+  const Point Q1 = project_to_plane_3d(q1, major_axis);
 
   // Case 2: both points in plane
   if (q0o == 0.0 and q1o == 0.0)

@@ -14,7 +14,7 @@
 //
 // All random generators use seed 42 for reproducibility.
 
-#ifdef GEOMETRY_WITH_CGAL
+#ifdef SIMPEX_WITH_CGAL
 
 #include <array>
 #include <cmath>
@@ -823,4 +823,4 @@ TEST_CASE("CGAL vs Shewchuk: orient3d sign agreement", "[cgal]")
   CHECK(miss == 0);
 }
 
-#endif // GEOMETRY_WITH_CGAL
+#endif // SIMPEX_WITH_CGAL

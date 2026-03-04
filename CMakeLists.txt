@@ -5,16 +5,16 @@ project(simpex VERSION 1.0.0 LANGUAGES CXX)
 option(BUILD_TESTING "Build tests" ON)
 option(BUILD_PYTHON "Build Python bindings" ON)
 option(BUILD_BENCHMARKS "Build performance benchmarks (requires CGAL)" ON)
-option(GEOMETRY_NATIVE_ARCH "Enable -march=native for CPU-specific optimizations (not portable across machines)" ON)
-option(GEOMETRY_WARNINGS "Enable strict compiler warnings" ON)
+option(SIMPEX_NATIVE_ARCH "Enable -march=native for CPU-specific optimizations (not portable across machines)" ON)
+option(SIMPEX_WARNINGS "Enable strict compiler warnings" ON)
 
 # Optimization and warning flags for GCC and Clang
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
   add_compile_options(-O3)
-  if(GEOMETRY_NATIVE_ARCH)
+  if(SIMPEX_NATIVE_ARCH)
     add_compile_options(-march=native)
   endif()
-  if(GEOMETRY_WARNINGS)
+  if(SIMPEX_WARNINGS)
     add_compile_options(
       -Wall
       -Wextra

@@ -16,21 +16,20 @@
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
-#include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
-#include <set>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_set>
 #include <vector>
-#include "predicates.h"
+#include "CGALExactArithmetic.h"
+#include "CollisionPredicates.h"
+#include "ConvexTriangulation.h"
 #include "GeometryPredicates.h"
 #include "GeometryTools.h"
-#include "CollisionPredicates.h"
 #include "IntersectionConstruction.h"
-#include "ConvexTriangulation.h"
-#include "CGALExactArithmetic.h"
+#include "predicates.h"
 
 using namespace simpex;
 
