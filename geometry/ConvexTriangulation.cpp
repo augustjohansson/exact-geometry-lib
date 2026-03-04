@@ -67,97 +67,214 @@ namespace
 
     return points;
   }
-  //------------------------------------------------------------------------------
-  // Check if q lies between p0 and p1. p0, p1 and q are assumed to be colinear
-  inline bool is_between(const Point& p0, const Point& p1, const Point& q)
-  {
-    const double sqnorm = (p1-p0).squared_norm();
-    return (p0-q).squared_norm() < sqnorm && (p1-q).squared_norm() < sqnorm;
-  }
-  //------------------------------------------------------------------------------
-  // Return the edge pairs forming the convex hull of a set of coplanar points.
-  std::vector<std::pair<std::size_t, std::size_t>>
-  compute_convex_hull_planar(const std::vector<Point>& points)
-  {
-    Point normal = GeometryTools::cross_product(points[0], points[1], points[2]);
-    normal /= normal.norm();
 
-    std::vector<std::pair<std::size_t, std::size_t>> edges;
 
-    for (std::size_t i = 0; i < points.size(); i++)
-    {
-      for (std::size_t j = i+1; j < points.size(); j++)
+struct ProjPt
+{
+  double u, v;
+  std::size_t idx;
+};
+
+static inline int dominant_drop_axis_from_normal(const Point& n) noexcept
+{
+  const double ax = std::abs(n.x());
+  const double ay = std::abs(n.y());
+  const double az = std::abs(n.z());
+  if (ax >= ay && ax >= az) return 0; // drop x -> use (y,z)
+  if (ay >= ax && ay >= az) return 1; // drop y -> use (x,z)
+  return 2;                           // drop z -> use (x,y)
+}
+
+static inline void project_drop_axis(const Point& p, const Point& origin,
+                                     int drop, double& u, double& v) noexcept
+{
+  const double x = p.x() - origin.x();
+  const double y = p.y() - origin.y();
+  const double z = p.z() - origin.z();
+  if (drop == 0)      { u = y; v = z; }
+  else if (drop == 1) { u = x; v = z; }
+  else                { u = x; v = y; }
+}
+
+// Find a “good” normal direction by selecting the max-area triangle.
+// Returns false if all points are collinear/identical (no plane).
+static bool find_stable_normal(const std::vector<Point>& P, Point& N_out,
+                               std::size_t& anchor_out)
+{
+  const std::size_t n = P.size();
+  double best = 0.0;
+  Point bestN;
+  std::size_t bestA = 0;
+
+  for (std::size_t a = 0; a < n; ++a)
+    for (std::size_t b = a + 1; b < n; ++b)
+      for (std::size_t c = b + 1; c < n; ++c)
       {
-        const Point r = points[i]+normal;
-
-        double edge_orientation = 0;
+        Point N = GeometryTools::cross_product(P[a], P[b], P[c]); // (b-a)x(c-a)
+        const double s = N.squared_norm();
+        if (s > best)
         {
-          std::size_t a = 0;
-          while (edge_orientation == 0)
-          {
-            if (a != i && a != j)
-            {
-              edge_orientation = orient3d(points[i],
-                                          points[j],
-                                          r,
-                                          points[a]);
-            }
-            a++;
-          }
-        }
-
-        bool on_convex_hull = true;
-	std::vector<std::size_t> colinear;
-        for (std::size_t p = 0; p < points.size(); p++)
-        {
-          if (p != i && p != j)
-          {
-            const double orientation = orient3d(points[i],
-                                                points[j],
-                                                r,
-                                                points[p]);
-
-	    if (orientation == 0)
-	    {
-	      colinear.push_back(p);
-	    }
-
-            if (edge_orientation * orientation < 0)
-            {
-              on_convex_hull = false;
-            }
-          }
-        }
-
-        if (on_convex_hull)
-        {
-	  if (!colinear.empty())
-	  {
-	    bool is_linear_convex_hull = true;
-	    for (std::size_t q : colinear)
-	    {
-	      if (!is_between(points[i], points[j], points[q]))
-	      {
-		is_linear_convex_hull = false;
-		break;
-	      }
-	    }
-
-	    if (is_linear_convex_hull)
-	    {
-	      edges.push_back(std::make_pair(i,  j));
-	    }
-	  }
-	  else
-	  {
-	    edges.push_back(std::make_pair(i, j));
-	  }
+          best = s;
+          bestN = N;
+          bestA = a;
         }
       }
-    }
 
-    return edges;
+  if (best == 0.0)
+    return false;
+
+  N_out = bestN;     // NOTE: not normalized
+  anchor_out = bestA;
+  return true;
+}
+
+// Hybrid turn: orient2d fast; if 0, use orient3d(a,b,a+N,c) fallback.
+static inline double turn_sign_hybrid(const ProjPt& A, const ProjPt& B, const ProjPt& C,
+                                      const std::vector<Point>& P,
+                                      const Point& N)
+{
+  const double a2[2] = {A.u, A.v};
+  const double b2[2] = {B.u, B.v};
+  const double c2[2] = {C.u, C.v};
+  const double o2 = _orient2d(a2, b2, c2);
+  if (o2 != 0.0) return o2;
+
+  // Fallback: robust in-plane orientation using 3D predicate
+  const Point& a3 = P[A.idx];
+  const Point& b3 = P[B.idx];
+  const Point& c3 = P[C.idx];
+  const Point r = a3 + N;
+  return orient3d(a3, b3, r, c3);
+}
+
+static std::vector<std::size_t>
+convex_hull_planar_indices_robust(const std::vector<Point>& points)
+{
+  const std::size_t n = points.size();
+  if (n == 0) return {};
+  if (n == 1) return {0};
+
+  Point N;
+  std::size_t anchor = 0;
+  if (!find_stable_normal(points, N, anchor))
+  {
+    // 1D hull: choose endpoints along axis with largest spread
+    double minx = points[0].x(), maxx = points[0].x();
+    double miny = points[0].y(), maxy = points[0].y();
+    double minz = points[0].z(), maxz = points[0].z();
+    for (std::size_t i = 1; i < n; ++i)
+    {
+      minx = std::min(minx, points[i].x()); maxx = std::max(maxx, points[i].x());
+      miny = std::min(miny, points[i].y()); maxy = std::max(maxy, points[i].y());
+      minz = std::min(minz, points[i].z()); maxz = std::max(maxz, points[i].z());
+    }
+    const double sx = maxx - minx, sy = maxy - miny, sz = maxz - minz;
+    int axis = (sx >= sy && sx >= sz) ? 0 : (sy >= sx && sy >= sz) ? 1 : 2;
+
+    auto coord = [&](const Point& p) -> double {
+      return (axis == 0) ? p.x() : (axis == 1) ? p.y() : p.z();
+    };
+
+    std::size_t lo = 0, hi = 0;
+    for (std::size_t i = 1; i < n; ++i)
+    {
+      if (coord(points[i]) < coord(points[lo])) lo = i;
+      if (coord(points[i]) > coord(points[hi])) hi = i;
+    }
+    if (lo == hi) return {lo};
+    return {lo, hi};
   }
+
+  const int drop = dominant_drop_axis_from_normal(N);
+  const Point origin = points[anchor];
+
+  // Project
+  std::vector<ProjPt> P2;
+  P2.reserve(n);
+  for (std::size_t i = 0; i < n; ++i)
+  {
+    double u, v;
+    project_drop_axis(points[i], origin, drop, u, v);
+    P2.push_back({u, v, i});
+  }
+
+  // Sort by (u,v)
+  std::sort(P2.begin(), P2.end(), [](const ProjPt& a, const ProjPt& b) {
+    if (a.u < b.u) return true;
+    if (a.u > b.u) return false;
+    if (a.v < b.v) return true;
+    if (a.v > b.v) return false;
+    return a.idx < b.idx;
+  });
+
+  // Remove exact duplicates in projection
+  P2.erase(std::unique(P2.begin(), P2.end(), [](const ProjPt& a, const ProjPt& b) {
+    return a.u == b.u && a.v == b.v;
+  }), P2.end());
+
+  if (P2.size() == 1) return {P2[0].idx};
+  if (P2.size() == 2) return {P2[0].idx, P2[1].idx};
+
+  // Andrew monotone chain, pop on <=0 to discard collinear boundary points
+  std::vector<ProjPt> lower, upper;
+  lower.reserve(P2.size());
+  upper.reserve(P2.size());
+
+  for (const auto& p : P2)
+  {
+    while (lower.size() >= 2)
+    {
+      const auto& A = lower[lower.size() - 2];
+      const auto& B = lower[lower.size() - 1];
+      const double o = turn_sign_hybrid(A, B, p, points, N);
+      if (o <= 0.0) lower.pop_back();
+      else break;
+    }
+    lower.push_back(p);
+  }
+
+  for (std::size_t k = P2.size(); k-- > 0; )
+  {
+    const auto& p = P2[k];
+    while (upper.size() >= 2)
+    {
+      const auto& A = upper[upper.size() - 2];
+      const auto& B = upper[upper.size() - 1];
+      const double o = turn_sign_hybrid(A, B, p, points, N);
+      if (o <= 0.0) upper.pop_back();
+      else break;
+    }
+    upper.push_back(p);
+  }
+
+  lower.pop_back();
+  upper.pop_back();
+
+  std::vector<std::size_t> hull;
+  hull.reserve(lower.size() + upper.size());
+  for (const auto& p : lower) hull.push_back(p.idx);
+  for (const auto& p : upper) hull.push_back(p.idx);
+
+  return hull;
+}
+
+std::vector<std::pair<std::size_t, std::size_t>>
+compute_convex_hull_planar(const std::vector<Point>& points)
+{
+  std::vector<std::pair<std::size_t, std::size_t>> edges;
+
+  const auto hull = convex_hull_planar_indices_robust(points);
+  if (hull.size() < 2) return edges;
+
+  edges.reserve(hull.size());
+  for (std::size_t i = 0; i < hull.size(); ++i)
+  {
+    const std::size_t a = hull[i];
+    const std::size_t b = hull[(i + 1) % hull.size()];
+    edges.emplace_back(a, b);
+  }
+
+  return edges;
 }
 
 //------------------------------------------------------------------------------
