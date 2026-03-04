@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 
 set(TEST_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/CollisionPredicates.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ConvexTriangulation.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IntersectionConstruction.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/SimplexQuadrature.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test_CollisionPredicates.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test_ConvexTriangulation.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test_IntersectionConstruction.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test_SimplexQuadrature.cpp
 )
 
 add_executable(simpex_tests ${TEST_SOURCES})
@@ -24,7 +24,7 @@ find_package(CGAL QUIET)
 if(CGAL_FOUND)
   add_executable(simpex_cgal_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/CGALComparison.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_CGALComparison.cpp
   )
   target_include_directories(simpex_cgal_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(simpex_cgal_tests PRIVATE simpex_lib CGAL::CGAL)

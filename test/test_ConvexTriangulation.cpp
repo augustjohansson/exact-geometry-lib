@@ -38,7 +38,7 @@ namespace
     return true;
   }
 
-  bool has_degenerate(const std::vector<std::vector<Point>>& triangulation, std::size_t dim)
+  bool has_degenerate(const std::vector<std::vector<Point>>& triangulation, std::size_t /*dim*/)
   {
     for (const std::vector<Point>& tri : triangulation)
     {
@@ -205,7 +205,7 @@ TEST_CASE("Convex triangulation test")
     CHECK(triangulation_volume(tri) == Approx(1.0));
   }
 
-  SECTION("test coplanar colinear points]")
+  SECTION("test coplanar collinear points]")
   {
     std::vector<Point> input {
       Point(0, 0,   0),
@@ -283,5 +283,183 @@ TEST_CASE("Convex triangulation test")
     CHECK_FALSE(has_degenerate(tri, 3));
     CHECK_FALSE(triangulation_selfintersects(tri, 3));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Extensive tests for compute_convex_hull_planar (tested via 3D Graham scan)
+// ---------------------------------------------------------------------------
+TEST_CASE("ConvexTriangulation: convex_hull_planar - all identical points")
+{
+  // All points are the same: hull has no volume, triangulation must be empty.
+  std::vector<Point> input {
+    Point(1.0, 2.0, 3.0),
+    Point(1.0, 2.0, 3.0),
+    Point(1.0, 2.0, 3.0),
+    Point(1.0, 2.0, 3.0) };
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+  CHECK(tri.empty());
+}
+
+TEST_CASE("ConvexTriangulation: convex_hull_planar - all points collinear in 3D")
+{
+  // Four collinear points: hull is 1D, 3D triangulation must be empty.
+  std::vector<Point> input {
+    Point(0.0, 0.0, 0.0),
+    Point(1.0, 0.0, 0.0),
+    Point(2.0, 0.0, 0.0),
+    Point(3.0, 0.0, 0.0) };
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+  CHECK(tri.empty());
+}
+
+TEST_CASE("ConvexTriangulation: convex_hull_planar - all coplanar, unit square")
+{
+  // All 4 points are coplanar in z=0 plane: no valid tetrahedra.
+  std::vector<Point> input {
+    Point(0.0, 0.0, 0.0),
+    Point(1.0, 0.0, 0.0),
+    Point(1.0, 1.0, 0.0),
+    Point(0.0, 1.0, 0.0) };
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+  CHECK(tri.empty());
+}
+
+TEST_CASE("ConvexTriangulation: convex_hull_planar - 100 collinear points on hull edge")
+{
+  // Unit cube with 100 extra collinear points along one edge.
+  // Hull should still be the unit cube => volume = 1.
+  std::vector<Point> input {
+    Point(0.0, 0.0, 0.0),
+    Point(1.0, 0.0, 0.0),
+    Point(1.0, 1.0, 0.0),
+    Point(0.0, 1.0, 0.0),
+    Point(0.0, 0.0, 1.0),
+    Point(1.0, 0.0, 1.0),
+    Point(1.0, 1.0, 1.0),
+    Point(0.0, 1.0, 1.0) };
+
+  for (int k = 1; k <= 100; ++k)
+  {
+    const double t = static_cast<double>(k) / 101.0;
+    // Points along edge (0,0,0)-(1,0,0)
+    input.emplace_back(t, 0.0, 0.0);
+  }
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  CHECK(triangulation_volume(tri) == Approx(1.0).epsilon(1e-10));
+}
+
+TEST_CASE("ConvexTriangulation: convex_hull_planar - near-collinear triplets")
+{
+  // Cube with a nearly-but-not-quite-collinear extra point; volume should still be ~1.
+  std::vector<Point> input {
+    Point(0.0, 0.0, 0.0),
+    Point(1.0, 0.0, 0.0),
+    Point(1.0, 1.0, 0.0),
+    Point(0.0, 1.0, 0.0),
+    Point(0.0, 0.0, 1.0),
+    Point(1.0, 0.0, 1.0),
+    Point(1.0, 1.0, 1.0),
+    Point(0.0, 1.0, 1.0),
+    Point(0.5 + 1e-10, 0.0, 0.0) };  // near-collinear but inside edge
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  CHECK(triangulation_volume(tri) == Approx(1.0).epsilon(1e-6));
+}
+
+TEST_CASE("ConvexTriangulation: convex_hull_planar - near-duplicate points")
+{
+  // Cube with near-duplicate points that should collapse after unique_points.
+  // unique_points uses tol = 3e-16 so 1e-13 should be treated as different.
+  std::vector<Point> input {
+    Point(0.0, 0.0, 0.0),
+    Point(1.0, 0.0, 0.0),
+    Point(1.0, 1.0, 0.0),
+    Point(0.0, 1.0, 0.0),
+    Point(0.0, 0.0, 1.0),
+    Point(1.0, 0.0, 1.0),
+    Point(1.0, 1.0, 1.0),
+    Point(0.0, 1.0, 1.0),
+    // These are duplicate-within-machine-eps and should be filtered out
+    Point(0.0 + 1e-17, 0.0, 0.0),
+    Point(1.0 + 1e-17, 0.0, 0.0) };
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  CHECK(triangulation_volume(tri) == Approx(1.0).epsilon(1e-10));
+}
+
+// ---------------------------------------------------------------------------
+// Magnitude tests: entities of size ~1e-13 and ~1e13
+// ---------------------------------------------------------------------------
+TEST_CASE("ConvexTriangulation: small magnitude (~1e-13) unit cube")
+{
+  const double s = 1e-13;
+  std::vector<Point> input {
+    Point(0.0,  0.0,  0.0),
+    Point(s,    0.0,  0.0),
+    Point(s,    s,    0.0),
+    Point(0.0,  s,    0.0),
+    Point(0.0,  0.0,  s),
+    Point(s,    0.0,  s),
+    Point(s,    s,    s),
+    Point(0.0,  s,    s) };
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  CHECK(triangulation_volume(tri) == Approx(s*s*s).epsilon(1e-3));
+}
+
+TEST_CASE("ConvexTriangulation: large magnitude (~1e13) unit cube")
+{
+  const double s = 1e13;
+  std::vector<Point> input {
+    Point(0.0,  0.0,  0.0),
+    Point(s,    0.0,  0.0),
+    Point(s,    s,    0.0),
+    Point(0.0,  s,    0.0),
+    Point(0.0,  0.0,  s),
+    Point(s,    0.0,  s),
+    Point(s,    s,    s),
+    Point(0.0,  s,    s) };
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  CHECK(triangulation_volume(tri) == Approx(s*s*s).epsilon(1e-3));
+}
+
+TEST_CASE("ConvexTriangulation: mixed magnitudes cube (1e-13 vs 1e13)")
+{
+  // A tetrahedron with vertices at very different scales
+  std::vector<Point> input {
+    Point(0.0,      0.0,      0.0),
+    Point(1e-13,    0.0,      0.0),
+    Point(0.0,      1e13,     0.0),
+    Point(0.0,      0.0,      1.0) };
+
+  std::vector<std::vector<Point>> tri = ConvexTriangulation::triangulate_graham_scan_3d(input);
+
+  CHECK(pure_triangular(tri, 3));
+  CHECK_FALSE(has_degenerate(tri, 3));
+  CHECK_FALSE(triangulation_selfintersects(tri, 3));
+  // Volume = |det| / 6 = (1e-13 * 1e13 * 1.0) / 6 = 1.0/6.0
+  CHECK(triangulation_volume(tri) == Approx(1.0/6.0).epsilon(1e-6));
 }
 //-----------------------------------------------------------------------------

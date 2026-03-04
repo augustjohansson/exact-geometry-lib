@@ -485,3 +485,103 @@ TEST_CASE("CollisionPredicates: tetrahedron-tetrahedron 3D")
       Point(3.0, 1.0, 0.0), Point(3.0, 0.0, 1.0)));
   }
 }
+
+
+// ---------------------------------------------------------------------------
+// Magnitude tests: entities of size ~1e-13 and ~1e13
+// ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: magnitude tests ~1e-13")
+{
+  const double s = 1e-13;
+
+  SECTION("tet-point inside (small scale)")
+  {
+    // Unit tet scaled by s
+    CHECK(CollisionPredicates::collides_tetrahedron_point_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*0.1, s*0.1, s*0.1)));
+  }
+
+  SECTION("tet-point outside (small scale)")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_point_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*2.0, 0.0, 0.0)));
+  }
+
+  SECTION("tri-tri intersecting (small scale)")
+  {
+    CHECK(CollisionPredicates::collides_triangle_triangle_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0), Point(0.0, s, 0.0),
+      Point(s*0.25, s*0.25, -s), Point(s*0.25, s*0.25, s), Point(s*0.3, s*0.1, 0.0)));
+  }
+
+  SECTION("tet-tet intersecting (small scale)")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*0.1, s*0.1, s*0.1), Point(s*1.1, s*0.1, s*0.1),
+      Point(s*0.1, s*1.1, s*0.1), Point(s*0.1, s*0.1, s*1.1)));
+  }
+}
+
+TEST_CASE("CollisionPredicates: magnitude tests ~1e13")
+{
+  const double s = 1e13;
+
+  SECTION("tet-point inside (large scale)")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_point_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*0.1, s*0.1, s*0.1)));
+  }
+
+  SECTION("tet-point outside (large scale)")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_point_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*2.0, 0.0, 0.0)));
+  }
+
+  SECTION("tri-tri intersecting (large scale)")
+  {
+    CHECK(CollisionPredicates::collides_triangle_triangle_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0), Point(0.0, s, 0.0),
+      Point(s*0.25, s*0.25, -s), Point(s*0.25, s*0.25, s), Point(s*0.3, s*0.1, 0.0)));
+  }
+
+  SECTION("tet-tet intersecting (large scale)")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s),
+      Point(s*0.1, s*0.1, s*0.1), Point(s*1.1, s*0.1, s*0.1),
+      Point(s*0.1, s*1.1, s*0.1), Point(s*0.1, s*0.1, s*1.1)));
+  }
+}
+
+TEST_CASE("CollisionPredicates: mixed magnitude (1e-13 vs 1e13)")
+{
+  SECTION("seg-point: segment endpoint at 1e-13, point at 1e13 scale")
+  {
+    // A tiny segment at origin and a far-away point
+    CHECK_FALSE(CollisionPredicates::collides_segment_point_3d(
+      Point(0.0, 0.0, 0.0), Point(1e-13, 0.0, 0.0),
+      Point(1e13, 0.0, 0.0)));
+  }
+
+  SECTION("tet not colliding at wildly different scales")
+  {
+    // Tiny tet near origin, point at 1e13
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_point_3d(
+      Point(0.0, 0.0, 0.0), Point(1e-13, 0.0, 0.0),
+      Point(0.0, 1e-13, 0.0), Point(0.0, 0.0, 1e-13),
+      Point(1e13, 1e13, 1e13)));
+  }
+}

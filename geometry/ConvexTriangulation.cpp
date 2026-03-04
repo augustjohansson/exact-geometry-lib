@@ -277,6 +277,8 @@ compute_convex_hull_planar(const std::vector<Point>& points)
   return edges;
 }
 
+} // anonymous namespace
+
 //------------------------------------------------------------------------------
 std::vector<std::vector<Point>>
 ConvexTriangulation::triangulate(const std::vector<Point>& p,
@@ -397,7 +399,7 @@ ConvexTriangulation::_triangulate_graham_scan_2d(const std::vector<Point>& input
   Point pointscenter = points[0];
   for (std::size_t m = 1; m < points.size(); ++m)
     pointscenter += points[m];
-  pointscenter /= points.size();
+  pointscenter /= static_cast<double>(points.size());
 
   const Point ref = points[0] - pointscenter;
 
@@ -455,7 +457,7 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
     Point polyhedroncenter(0,0,0);
     for (const Point& p : points)
       polyhedroncenter += p;
-    polyhedroncenter /= points.size();
+    polyhedroncenter /= static_cast<double>(points.size());
 
     std::set<std::tuple<std::size_t, std::size_t, std::size_t> > checked;
 
@@ -531,7 +533,7 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 		Point coplanar_center(0,0,0);
 		for (const Point& p : coplanar_points)
 		  coplanar_center += p;
-		coplanar_center /= coplanar_points.size();
+		coplanar_center /= static_cast<double>(coplanar_points.size());
 
 		for (const std::pair<std::size_t, std::size_t>& edge : coplanar_convex_hull)
 		{
@@ -558,9 +560,9 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 
 		  std::sort(coplanar.begin(), coplanar.end());
 
-		  for (int coplanar_i = 0; coplanar_i < (int)coplanar.size()-2; coplanar_i++)
+		  for (std::size_t coplanar_i = 0; coplanar_i + 2 < coplanar.size(); coplanar_i++)
 		  {
-		    for (int coplanar_j = coplanar_i+1; coplanar_j < (int)coplanar.size()-1; coplanar_j++)
+		    for (std::size_t coplanar_j = coplanar_i+1; coplanar_j + 1 < coplanar.size(); coplanar_j++)
 		    {
 		      for (std::size_t coplanar_k = coplanar_j+1; coplanar_k < coplanar.size(); coplanar_k++)
 		      {

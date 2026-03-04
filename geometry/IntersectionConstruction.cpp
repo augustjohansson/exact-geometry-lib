@@ -66,15 +66,6 @@ namespace
 
     return _unique;
   }
-
-  // Convert vector of doubles to vector of points
-  std::vector<Point> to_points(const std::vector<double>& points)
-  {
-    std::vector<Point> _points;
-    for (auto x : points)
-      _points.push_back(Point(x));
-    return _points;
-  }
 }
 
 //-----------------------------------------------------------------------------
@@ -345,10 +336,10 @@ IntersectionConstruction::intersection_segment_segment_2d(const Point& p0,
 }
 //-----------------------------------------------------------------------------
 std::vector<Point>
-IntersectionConstruction::intersection_segment_segment_3d(const Point& p0,
-                                                          const Point& p1,
-                                                          const Point& q0,
-                                                          const Point& q1)
+IntersectionConstruction::intersection_segment_segment_3d(const Point& /*p0*/,
+                                                          const Point& /*p1*/,
+                                                          const Point& /*q0*/,
+                                                          const Point& /*q1*/)
 {
   // This function is not used so no need to spend time on the implementation.
   throw std::runtime_error("Not implemented");

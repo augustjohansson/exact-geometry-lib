@@ -548,7 +548,7 @@ bool CollisionPredicates::_collides_triangle_point_3d_in_plane(const Point& p0,
   const double nz = std::abs(n[2]);
 
   // Choose the two coordinates to keep (drop the dominant one).
-  int keep0, keep1;  // coordinate indices to keep after projection
+  std::size_t keep0, keep1;  // coordinate indices to keep after projection
   if (nz >= nx && nz >= ny)      { keep0 = 0; keep1 = 1; } // drop z
   else if (ny >= nx && ny >= nz) { keep0 = 0; keep1 = 2; } // drop y
   else                           { keep0 = 1; keep1 = 2; } // drop x

@@ -361,7 +361,7 @@ namespace
   //-----------------------------------------------------------------------------
   inline
   std::vector<std::vector<simpex::Point>>
-  triangulate_polygon_3d(const std::vector<simpex::Point>& points)
+  triangulate_polygon_3d(const std::vector<simpex::Point>& /*points*/)
   {
     // FIXME
     assert(false); // not implemented / unexpected
@@ -730,9 +730,9 @@ namespace simpex
       }
       else if (const std::vector<Point_2>* cgal_points = cgal_get_if<std::vector<Point_2>>(&*ii))
       {
-        for (Point_2 p : *cgal_points)
+        for (const Point_2& cp : *cgal_points)
         {
-          intersection.push_back(convert_from_cgal(p));
+          intersection.push_back(convert_from_cgal(cp));
         }
       }
       else
@@ -780,9 +780,9 @@ namespace simpex
       }
       else if (const std::vector<Point_3>* cgal_points = cgal_get_if<std::vector<Point_3>>(&*ii))
       {
-        for (Point_3 p : *cgal_points)
+        for (const Point_3& cp : *cgal_points)
         {
-          intersection.push_back(convert_from_cgal(p));
+          intersection.push_back(convert_from_cgal(cp));
         }
       }
       else

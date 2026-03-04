@@ -114,31 +114,28 @@ static int sgn(double v) { return (v > 0) ? 1 : (v < 0) ? -1 : 0; }
 // ---------------------------------------------------------------------------
 static BenchResult bench_orient2d(int n_calls)
 {
-  // Pre-generate random 2D points (deterministic order)
-  std::vector<Point> pts(3 * n_calls);
+  const std::size_t N = static_cast<std::size_t>(n_calls);
+  std::vector<Point> pts(3 * N);
   for (auto& p : pts) p = random_point2d();
 
-  // --- Shewchuk timing ---
   volatile double sink = 0.0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
     sink += orient2d(pts[3*i], pts[3*i+1], pts[3*i+2]);
   auto t1 = Clock::now();
   double shewchuk_ms = elapsed_ms(t0, t1);
   (void)sink;
 
-  // --- CGAL timing ---
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
     cgal_sink += (int)cgal_orient2d(pts[3*i], pts[3*i+1], pts[3*i+2]);
   auto t3 = Clock::now();
   double cgal_ms = elapsed_ms(t2, t3);
   (void)cgal_sink;
 
-  // --- Correctness check: compare signs ---
   long long n_mismatch = 0;
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
   {
     double s = orient2d(pts[3*i], pts[3*i+1], pts[3*i+2]);
     double c = cgal_orient2d(pts[3*i], pts[3*i+1], pts[3*i+2]);
@@ -155,30 +152,28 @@ static BenchResult bench_orient2d(int n_calls)
 // ---------------------------------------------------------------------------
 static BenchResult bench_orient3d(int n_calls)
 {
-  std::vector<Point> pts(4 * n_calls);
+  const std::size_t N = static_cast<std::size_t>(n_calls);
+  std::vector<Point> pts(4 * N);
   for (auto& p : pts) p = random_point3d();
 
-  // --- Shewchuk timing ---
   volatile double sink = 0.0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
     sink += orient3d(pts[4*i], pts[4*i+1], pts[4*i+2], pts[4*i+3]);
   auto t1 = Clock::now();
   double shewchuk_ms = elapsed_ms(t0, t1);
   (void)sink;
 
-  // --- CGAL timing ---
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
     cgal_sink += (int)cgal_orient3d(pts[4*i], pts[4*i+1], pts[4*i+2], pts[4*i+3]);
   auto t3 = Clock::now();
   double cgal_ms = elapsed_ms(t2, t3);
   (void)cgal_sink;
 
-  // --- Correctness check: compare signs ---
   long long n_mismatch = 0;
-  for (int i = 0; i < n_calls; ++i)
+  for (std::size_t i = 0; i < N; ++i)
   {
     double s = orient3d(pts[4*i], pts[4*i+1], pts[4*i+2], pts[4*i+3]);
     double c = cgal_orient3d(pts[4*i], pts[4*i+1], pts[4*i+2], pts[4*i+3]);
@@ -195,16 +190,16 @@ static BenchResult bench_orient3d(int n_calls)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tri_tri_3d(int n_tris)
 {
-  std::vector<std::vector<Point>> tris(n_tris);
+  const std::size_t N = static_cast<std::size_t>(n_tris);
+  std::vector<std::vector<Point>> tris(N);
   for (auto& t : tris) t = random_tri3d();
 
   long long n_pairs = (long long)n_tris * (n_tris - 1) / 2;
 
-  // --- Shewchuk timing ---
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = i + 1; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
       sink += (int)CollisionPredicates::collides_triangle_triangle_3d(
         tris[i][0], tris[i][1], tris[i][2],
         tris[j][0], tris[j][1], tris[j][2]);
@@ -212,11 +207,10 @@ static BenchResult bench_tri_tri_3d(int n_tris)
   double shewchuk_ms = elapsed_ms(t0, t1);
   (void)sink;
 
-  // --- CGAL timing ---
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = i + 1; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
       cgal_sink += (int)cgal_collides_triangle_triangle_3d(
         tris[i][0], tris[i][1], tris[i][2],
         tris[j][0], tris[j][1], tris[j][2]);
@@ -224,10 +218,9 @@ static BenchResult bench_tri_tri_3d(int n_tris)
   double cgal_ms = elapsed_ms(t2, t3);
   (void)cgal_sink;
 
-  // --- Correctness check ---
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = i + 1; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
     {
       bool s = CollisionPredicates::collides_triangle_triangle_3d(
         tris[i][0], tris[i][1], tris[i][2],
@@ -250,16 +243,16 @@ static BenchResult bench_tri_tri_3d(int n_tris)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tet_tet_3d(int n_tets)
 {
-  std::vector<std::vector<Point>> tets(n_tets);
+  const std::size_t N = static_cast<std::size_t>(n_tets);
+  std::vector<std::vector<Point>> tets(N);
   for (auto& t : tets) t = random_tet();
 
   long long n_pairs = (long long)n_tets * (n_tets - 1) / 2;
 
-  // --- Shewchuk timing ---
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = i + 1; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
       sink += (int)CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         tets[j][0], tets[j][1], tets[j][2], tets[j][3]);
@@ -267,11 +260,10 @@ static BenchResult bench_tet_tet_3d(int n_tets)
   double shewchuk_ms = elapsed_ms(t0, t1);
   (void)sink;
 
-  // --- CGAL timing ---
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = i + 1; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
       cgal_sink += (int)cgal_collides_tetrahedron_tetrahedron_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         tets[j][0], tets[j][1], tets[j][2], tets[j][3]);
@@ -279,10 +271,9 @@ static BenchResult bench_tet_tet_3d(int n_tets)
   double cgal_ms = elapsed_ms(t2, t3);
   (void)cgal_sink;
 
-  // --- Correctness check ---
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = i + 1; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = i + 1; j < N; ++j)
     {
       bool s = CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
@@ -305,17 +296,19 @@ static BenchResult bench_tet_tet_3d(int n_tets)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tri_seg_3d(int n_tris, int n_segs)
 {
-  std::vector<std::vector<Point>> tris(n_tris);
+  const std::size_t NT = static_cast<std::size_t>(n_tris);
+  const std::size_t NS = static_cast<std::size_t>(n_segs);
+  std::vector<std::vector<Point>> tris(NT);
   for (auto& t : tris) t = random_tri3d();
-  std::vector<std::vector<Point>> segs(n_segs);
+  std::vector<std::vector<Point>> segs(NS);
   for (auto& s : segs) s = random_seg3d();
 
   long long n_pairs = (long long)n_tris * n_segs;
 
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
       sink += (int)CollisionPredicates::collides_triangle_segment_3d(
         tris[i][0], tris[i][1], tris[i][2],
         segs[j][0], segs[j][1]);
@@ -325,8 +318,8 @@ static BenchResult bench_tri_seg_3d(int n_tris, int n_segs)
 
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
       cgal_sink += (int)cgal_collides_triangle_segment_3d(
         tris[i][0], tris[i][1], tris[i][2],
         segs[j][0], segs[j][1]);
@@ -335,8 +328,8 @@ static BenchResult bench_tri_seg_3d(int n_tris, int n_segs)
   (void)cgal_sink;
 
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
     {
       bool s = CollisionPredicates::collides_triangle_segment_3d(
         tris[i][0], tris[i][1], tris[i][2],
@@ -358,17 +351,19 @@ static BenchResult bench_tri_seg_3d(int n_tris, int n_segs)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tet_seg_3d(int n_tets, int n_segs)
 {
-  std::vector<std::vector<Point>> tets(n_tets);
+  const std::size_t NT = static_cast<std::size_t>(n_tets);
+  const std::size_t NS = static_cast<std::size_t>(n_segs);
+  std::vector<std::vector<Point>> tets(NT);
   for (auto& t : tets) t = random_tet();
-  std::vector<std::vector<Point>> segs(n_segs);
+  std::vector<std::vector<Point>> segs(NS);
   for (auto& s : segs) s = random_seg3d();
 
   long long n_pairs = (long long)n_tets * n_segs;
 
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
       sink += (int)CollisionPredicates::collides_tetrahedron_segment_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         segs[j][0], segs[j][1]);
@@ -378,8 +373,8 @@ static BenchResult bench_tet_seg_3d(int n_tets, int n_segs)
 
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
       cgal_sink += (int)cgal_collides_tetrahedron_segment_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         segs[j][0], segs[j][1]);
@@ -388,8 +383,8 @@ static BenchResult bench_tet_seg_3d(int n_tets, int n_segs)
   (void)cgal_sink;
 
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_segs; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NS; ++j)
     {
       bool s = CollisionPredicates::collides_tetrahedron_segment_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
@@ -411,17 +406,19 @@ static BenchResult bench_tet_seg_3d(int n_tets, int n_segs)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tet_tri_3d(int n_tets, int n_tris)
 {
-  std::vector<std::vector<Point>> tets(n_tets);
+  const std::size_t NT = static_cast<std::size_t>(n_tets);
+  const std::size_t NR = static_cast<std::size_t>(n_tris);
+  std::vector<std::vector<Point>> tets(NT);
   for (auto& t : tets) t = random_tet();
-  std::vector<std::vector<Point>> tris(n_tris);
+  std::vector<std::vector<Point>> tris(NR);
   for (auto& t : tris) t = random_tri3d();
 
   long long n_pairs = (long long)n_tets * n_tris;
 
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NR; ++j)
       sink += (int)CollisionPredicates::collides_tetrahedron_triangle_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         tris[j][0], tris[j][1], tris[j][2]);
@@ -431,8 +428,8 @@ static BenchResult bench_tet_tri_3d(int n_tets, int n_tris)
 
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NR; ++j)
       cgal_sink += (int)cgal_collides_tetrahedron_triangle_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
         tris[j][0], tris[j][1], tris[j][2]);
@@ -441,8 +438,8 @@ static BenchResult bench_tet_tri_3d(int n_tets, int n_tris)
   (void)cgal_sink;
 
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < NT; ++i)
+    for (std::size_t j = 0; j < NR; ++j)
     {
       bool s = CollisionPredicates::collides_tetrahedron_triangle_3d(
         tets[i][0], tets[i][1], tets[i][2], tets[i][3],
@@ -465,12 +462,12 @@ static BenchResult bench_tet_tri_3d(int n_tets, int n_tris)
 // ---------------------------------------------------------------------------
 static BenchResult bench_tri_tri_3d_near(int n_tris, double delta)
 {
-  std::vector<std::vector<Point>> trisA(n_tris);
+  const std::size_t N = static_cast<std::size_t>(n_tris);
+  std::vector<std::vector<Point>> trisA(N);
   for (auto& t : trisA) t = random_tri3d();
 
-  // Build near-miss triangles: translate each in z by delta
-  std::vector<std::vector<Point>> trisB(n_tris);
-  for (int i = 0; i < n_tris; ++i)
+  std::vector<std::vector<Point>> trisB(N);
+  for (std::size_t i = 0; i < N; ++i)
   {
     const Point off(0.0, 0.0, delta);
     trisB[i] = { trisA[i][0] + off, trisA[i][1] + off, trisA[i][2] + off };
@@ -480,8 +477,8 @@ static BenchResult bench_tri_tri_3d_near(int n_tris, double delta)
 
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
       sink += (int)CollisionPredicates::collides_triangle_triangle_3d(
         trisA[i][0], trisA[i][1], trisA[i][2],
         trisB[j][0], trisB[j][1], trisB[j][2]);
@@ -491,8 +488,8 @@ static BenchResult bench_tri_tri_3d_near(int n_tris, double delta)
 
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
       cgal_sink += (int)cgal_collides_triangle_triangle_3d(
         trisA[i][0], trisA[i][1], trisA[i][2],
         trisB[j][0], trisB[j][1], trisB[j][2]);
@@ -501,8 +498,8 @@ static BenchResult bench_tri_tri_3d_near(int n_tris, double delta)
   (void)cgal_sink;
 
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tris; ++i)
-    for (int j = 0; j < n_tris; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
     {
       bool s = CollisionPredicates::collides_triangle_triangle_3d(
         trisA[i][0], trisA[i][1], trisA[i][2],
@@ -521,11 +518,12 @@ static BenchResult bench_tri_tri_3d_near(int n_tris, double delta)
 
 static BenchResult bench_tet_tet_3d_near(int n_tets, double delta)
 {
-  std::vector<std::vector<Point>> tetsA(n_tets);
+  const std::size_t N = static_cast<std::size_t>(n_tets);
+  std::vector<std::vector<Point>> tetsA(N);
   for (auto& t : tetsA) t = random_tet();
 
-  std::vector<std::vector<Point>> tetsB(n_tets);
-  for (int i = 0; i < n_tets; ++i)
+  std::vector<std::vector<Point>> tetsB(N);
+  for (std::size_t i = 0; i < N; ++i)
   {
     const Point off(0.0, 0.0, delta);
     tetsB[i] = { tetsA[i][0] + off, tetsA[i][1] + off,
@@ -536,8 +534,8 @@ static BenchResult bench_tet_tet_3d_near(int n_tets, double delta)
 
   volatile int sink = 0;
   auto t0 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
       sink += (int)CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
         tetsA[i][0], tetsA[i][1], tetsA[i][2], tetsA[i][3],
         tetsB[j][0], tetsB[j][1], tetsB[j][2], tetsB[j][3]);
@@ -547,8 +545,8 @@ static BenchResult bench_tet_tet_3d_near(int n_tets, double delta)
 
   volatile int cgal_sink = 0;
   auto t2 = Clock::now();
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
       cgal_sink += (int)cgal_collides_tetrahedron_tetrahedron_3d(
         tetsA[i][0], tetsA[i][1], tetsA[i][2], tetsA[i][3],
         tetsB[j][0], tetsB[j][1], tetsB[j][2], tetsB[j][3]);
@@ -557,8 +555,8 @@ static BenchResult bench_tet_tet_3d_near(int n_tets, double delta)
   (void)cgal_sink;
 
   long long n_mismatch = 0;
-  for (int i = 0; i < n_tets; ++i)
-    for (int j = 0; j < n_tets; ++j)
+  for (std::size_t i = 0; i < N; ++i)
+    for (std::size_t j = 0; j < N; ++j)
     {
       bool s = CollisionPredicates::collides_tetrahedron_tetrahedron_3d(
         tetsA[i][0], tetsA[i][1], tetsA[i][2], tetsA[i][3],
