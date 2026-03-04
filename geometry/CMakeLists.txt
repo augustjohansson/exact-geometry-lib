@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-option(GEOMETRY_ENABLE_CGAL_DEBUGGING "Enable CGAL-based verification of geometry predicates" OFF)
+option(GEOMETRY_ENABLE_CGAL_DEBUGGING "Enable CGAL-based verification of geometry predicates" ON)
 set(GEOMETRY_SOURCES
   predicates.cpp
   CollisionPredicates.cpp

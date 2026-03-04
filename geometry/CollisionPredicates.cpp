@@ -299,61 +299,52 @@ bool CollisionPredicates::_collides_segment_point_1d(double p0,
   return p0 <= point and point <= p1;
 }
 //-----------------------------------------------------------------------------
+// Returns true iff p lies within the bounding box of segment [a,b] (2D check).
+static inline bool on_segment_bbox_2d(const Point& a, const Point& b,
+                                       const Point& p) noexcept
+{
+  return (std::min(a.x(), b.x()) <= p.x() && p.x() <= std::max(a.x(), b.x()) &&
+          std::min(a.y(), b.y()) <= p.y() && p.y() <= std::max(a.y(), b.y()));
+}
+//-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_segment_point_2d(const Point& p0,
                                                      const Point& p1,
                                                      const Point& point)
 {
-  const double orientation = orient2d(p0, p1, point);
-
-  const Point dp = p1 - p0;
-  const double segment_length = dp.squared_norm();
-
-  return orientation == 0.0 &&
-    (point-p0).squared_norm() <= segment_length &&
-    (point-p1).squared_norm() <= segment_length &&
-    dp.dot(p1-point) >= 0.0 && dp.dot(point-p0) >= 0.0;
+  if (orient2d(p0, p1, point) != 0.0) return false;
+  return on_segment_bbox_2d(p0, p1, point);
 }
 //-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_segment_point_3d(const Point& p0,
                                                      const Point& p1,
                                                      const Point& point)
 {
-
-  if (point == p0 or point == p1)
+  if (point == p0 || point == p1)
     return true;
 
-  // Poject to reduce to three 2d problems
-  const double det_xy = orient2d(p0, p1, point);
+  // Project to 2D planes in turn; point is collinear iff all three are zero.
+  // xy-plane
+  const double a0[2] = {p0.x(),    p0.y()   };
+  const double a1[2] = {p1.x(),    p1.y()   };
+  const double a2[2] = {point.x(), point.y()};
+  if (_orient2d(a0, a1, a2) != 0.0) return false;
 
-  if (det_xy == 0.0)
-    {
-      const std::array<std::array<double, 2>, 3> xz = {{ {{p0.x(), p0.z()}},
-							 {{p1.x(), p1.z()}},
-							 {{point.x(), point.z()}} }};
-      const double det_xz = _orient2d(xz[0].data(),
-				      xz[1].data(),
-				      xz[2].data());
+  // xz-plane
+  const double b0[2] = {p0.x(),    p0.z()   };
+  const double b1[2] = {p1.x(),    p1.z()   };
+  const double b2[2] = {point.x(), point.z()};
+  if (_orient2d(b0, b1, b2) != 0.0) return false;
 
-      if (det_xz == 0.0)
-	{
-	  const std::array<std::array<double, 2>, 3> yz = {{ {{p0.y(), p0.z()}},
-							     {{p1.y(), p1.z()}},
-							     {{point.y(), point.z()}} }};
-	  const double det_yz = _orient2d(yz[0].data(),
-					  yz[1].data(),
-					  yz[2].data());
+  // yz-plane
+  const double c0[2] = {p0.y(),    p0.z()   };
+  const double c1[2] = {p1.y(),    p1.z()   };
+  const double c2[2] = {point.y(), point.z()};
+  if (_orient2d(c0, c1, c2) != 0.0) return false;
 
-	  if (det_yz == 0.0)
-	    {
-	      // Point is aligned with segment
-	      const double length = (p0 - p1).squared_norm();
-	      return (point-p0).squared_norm() <= length and
-		(point-p1).squared_norm() <= length;
-	    }
-	}
-    }
-
-  return false;
+  // Point is collinear: check it lies between p0 and p1.
+  const double length = (p0 - p1).squared_norm();
+  return (point - p0).squared_norm() <= length &&
+         (point - p1).squared_norm() <= length;
 }
 //------------------------------------------------------------------------------
 bool CollisionPredicates::_collides_segment_segment_1d(double p0,
@@ -378,13 +369,8 @@ bool CollisionPredicates::_collides_segment_point_2d_with_hint(const Point& p0,
                                                                 double op01_pt)
 {
   // op01_pt = orient2d(p0, p1, point) is pre-computed.
-  if (op01_pt != 0.0)
-    return false;
-  const Point dp = p1 - p0;
-  const double segment_length = dp.squared_norm();
-  return (point-p0).squared_norm() <= segment_length &&
-         (point-p1).squared_norm() <= segment_length &&
-         dp.dot(p1-point) >= 0.0 && dp.dot(point-p0) >= 0.0;
+  if (op01_pt != 0.0) return false;
+  return on_segment_bbox_2d(p0, p1, point);
 }
 //-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_segment_segment_2d_with_hint(const Point& p0,
@@ -399,17 +385,16 @@ bool CollisionPredicates::_collides_segment_segment_2d_with_hint(const Point& p0
   // pq0 = orient2d(p0,p1,q0)  pq1 = orient2d(p0,p1,q1)
   // qp0 = orient2d(q0,q1,p0)  qp1 = orient2d(q0,q1,p1)
 
-  // Check endpoint-on-segment collisions using the pre-computed orientations.
-  if (_collides_segment_point_2d_with_hint(p0, p1, q0, pq0)) return true;
-  if (_collides_segment_point_2d_with_hint(p0, p1, q1, pq1)) return true;
-  if (_collides_segment_point_2d_with_hint(q0, q1, p0, qp0)) return true;
-  if (_collides_segment_point_2d_with_hint(q0, q1, p1, qp1)) return true;
-
-  // Points must be on strictly different sides of each other's segment.
-  // Note: the zero case (pq0==0 or pq1==0) is already handled by the
-  // endpoint-on-segment checks above, so '!= (sign differs)' is correct here.
+  // Proper (non-degenerate) crossing: each segment straddles the other.
   if (((pq0 > 0.0) != (pq1 > 0.0)) && ((qp0 > 0.0) != (qp1 > 0.0)))
     return true;
+
+  // Collinear / touching: at least one endpoint lies on the other segment.
+  if (pq0 == 0.0 && on_segment_bbox_2d(p0, p1, q0)) return true;
+  if (pq1 == 0.0 && on_segment_bbox_2d(p0, p1, q1)) return true;
+  if (qp0 == 0.0 && on_segment_bbox_2d(q0, q1, p0)) return true;
+  if (qp1 == 0.0 && on_segment_bbox_2d(q0, q1, p1)) return true;
+
   return false;
 }
 //-----------------------------------------------------------------------------
@@ -418,11 +403,22 @@ bool CollisionPredicates::_collides_segment_segment_2d(const Point& p0,
                                                        const Point& q0,
                                                        const Point& q1)
 {
-  const double pq0 = orient2d(p0, p1, q0);
-  const double pq1 = orient2d(p0, p1, q1);
-  const double qp0 = orient2d(q0, q1, p0);
-  const double qp1 = orient2d(q0, q1, p1);
-  return _collides_segment_segment_2d_with_hint(p0, p1, q0, q1, pq0, pq1, qp0, qp1);
+  const double o1 = orient2d(p0, p1, q0);
+  const double o2 = orient2d(p0, p1, q1);
+  const double o3 = orient2d(q0, q1, p0);
+  const double o4 = orient2d(q0, q1, p1);
+
+  // Proper intersection: each segment straddles the other's line.
+  if (((o1 > 0.0) != (o2 > 0.0)) && ((o3 > 0.0) != (o4 > 0.0)))
+    return true;
+
+  // Collinear / touching: check bbox containment.
+  if (o1 == 0.0 && on_segment_bbox_2d(p0, p1, q0)) return true;
+  if (o2 == 0.0 && on_segment_bbox_2d(p0, p1, q1)) return true;
+  if (o3 == 0.0 && on_segment_bbox_2d(q0, q1, p0)) return true;
+  if (o4 == 0.0 && on_segment_bbox_2d(q0, q1, p1)) return true;
+
+  return false;
 }
 //-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_segment_segment_3d(const Point& p0,
@@ -544,12 +540,34 @@ bool CollisionPredicates::_collides_triangle_point_3d_in_plane(const Point& p0,
                                                                 const Point& point)
 {
   // Assumes orient3d(p0,p1,p2,point) == 0.0 -- point is in the triangle's plane.
-  if (p0 == point || p1 == point || p2 == point)
-    return true;
+  // Project to 2D by dropping the coordinate corresponding to the largest
+  // component of the triangle normal.  This is exact with Shewchuk predicates.
   const Point n = GeometryTools::cross_product(p0, p1, p2);
-  return !(n.dot(GeometryTools::cross_product(point, p0, p1)) < 0.0 ||
-           n.dot(GeometryTools::cross_product(point, p2, p0)) < 0.0 ||
-           n.dot(GeometryTools::cross_product(point, p1, p2)) < 0.0);
+  const double nx = std::abs(n[0]);
+  const double ny = std::abs(n[1]);
+  const double nz = std::abs(n[2]);
+
+  // Choose the two coordinates to keep (drop the dominant one).
+  int keep0, keep1;  // coordinate indices to keep after projection
+  if (nz >= nx && nz >= ny)      { keep0 = 0; keep1 = 1; } // drop z
+  else if (ny >= nx && ny >= nz) { keep0 = 0; keep1 = 2; } // drop y
+  else                           { keep0 = 1; keep1 = 2; } // drop x
+
+  // Apply orient2d in the projected plane.
+  const double a0[2] = {p0[keep0],    p0[keep1]   };
+  const double a1[2] = {p1[keep0],    p1[keep1]   };
+  const double a2[2] = {p2[keep0],    p2[keep1]   };
+  const double qp[2] = {point[keep0], point[keep1]};
+
+  const double ref2d = _orient2d(a0, a1, a2);
+  const double e01   = _orient2d(a0, a1, qp);
+  const double e12   = _orient2d(a1, a2, qp);
+  const double e20   = _orient2d(a2, a0, qp);
+
+  if (ref2d > 0.0) return e01 >= 0.0 && e12 >= 0.0 && e20 >= 0.0;
+  if (ref2d < 0.0) return e01 <= 0.0 && e12 <= 0.0 && e20 <= 0.0;
+  // Degenerate projected triangle (co-projected): fall back to vertex check.
+  return (p0 == point || p1 == point || p2 == point);
 }
 //-----------------------------------------------------------------------------
 bool CollisionPredicates::_collides_triangle_point_3d(const Point& p0,
@@ -634,12 +652,13 @@ bool CollisionPredicates::_collides_triangle_segment_3d_with_hint(const Point& r
     return false;
   }
 
-  // a and b on strictly different sides: use tetrahedra orientation test
-  Point _a = a, _b = b;
-  if (rsta < 0.0) std::swap(_a, _b);
-  if (orient3d(r, _a, s, _b) < 0) return false;
-  if (orient3d(s, _a, t, _b) < 0) return false;
-  if (orient3d(t, _a, r, _b) < 0) return false;
+  // a and b on strictly different sides: use tetrahedra orientation test.
+  // Orient so that the "a" side is always the positive side (no copy needed).
+  const Point& A = (rsta < 0.0) ? b : a;
+  const Point& B = (rsta < 0.0) ? a : b;
+  if (orient3d(r, A, s, B) < 0) return false;
+  if (orient3d(s, A, t, B) < 0) return false;
+  if (orient3d(t, A, r, B) < 0) return false;
   return true;
 }
 //-----------------------------------------------------------------------------
@@ -716,50 +735,25 @@ bool CollisionPredicates::_collides_triangle_triangle_3d(const Point& p0,
                                                          const Point& q1,
                                                          const Point& q2)
 {
-  // FIXME: Optimize by avoiding redundant calls to orient3d
+  // Pre-compute orient3d of the p-plane for each q-vertex and vice versa.
+  // This eliminates all redundant orient3d calls in the edge-face tests.
+  const double pq0 = orient3d(p0, p1, p2, q0);
+  const double pq1 = orient3d(p0, p1, p2, q1);
+  const double pq2 = orient3d(p0, p1, p2, q2);
 
-  // Pack points as vectors
-  const std::array<Point, 3> tri_0 = {{p0, p1, p2}};
-  const std::array<Point, 3> tri_1 = {{q0, q1, q2}};
+  const double qp0 = orient3d(q0, q1, q2, p0);
+  const double qp1 = orient3d(q0, q1, q2, p1);
+  const double qp2 = orient3d(q0, q1, q2, p2);
 
-  // First test edge-face collisions
-  for (std::size_t i = 0; i < 3; ++i)
-    {
-      const std::size_t j = (i + 1) % 3;
+  // Check each edge of q against the p-face, using pre-computed hints.
+  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q0, q1, pq0, pq1)) return true;
+  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q1, q2, pq1, pq2)) return true;
+  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q2, q0, pq2, pq0)) return true;
 
-      if (collides_triangle_segment_3d(p0, p1, p2, tri_1[i], tri_1[j]))
-	return true;
-
-      if (collides_triangle_segment_3d(q0, q1, q2, tri_0[i], tri_0[j]))
-	return true;
-    }
-
-  // Test edge-edge collisions
-  for (std::size_t i0 = 0; i0 < 3; i0++)
-    {
-      const std::size_t j0 = (i0 + 1) % 3;
-      for (std::size_t i1 = 0; i1 < 3; i1++)
-	{
-	  const std::size_t j1 = (i1 + 1) % 3;
-	  if (collides_segment_segment_3d(tri_0[i0], tri_0[j0],
-					  tri_1[i1], tri_1[j1]))
-	    {
-	      return true;
-	    }
-	}
-    }
-
-  // FIXME
-  // Test point-face collisions (could also be detected by
-  // triangle_segment collision above)
-  for (std::size_t i = 0; i < 3; ++i)
-    {
-      if (collides_triangle_point_3d(p0, p1, p2, tri_1[i]))
-	return true;
-
-      if (collides_triangle_point_3d(q0, q1, q2, tri_0[i]))
-	return true;
-    }
+  // Check each edge of p against the q-face, using pre-computed hints.
+  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p0, p1, qp0, qp1)) return true;
+  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p1, p2, qp1, qp2)) return true;
+  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p2, p0, qp2, qp0)) return true;
 
   return false;
 }
