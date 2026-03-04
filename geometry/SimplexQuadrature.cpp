@@ -18,6 +18,7 @@
 #include <cassert>
 #include <stdexcept>
 #include "SimplexQuadrature.h"
+#include "SimplexQuadratureTables.h"
 #include "predicates.h"
 
 using namespace simpex;
@@ -27,236 +28,145 @@ SimplexQuadrature::SimplexQuadrature(std::size_t tdim, std::size_t order)
 {
   // Create and store quadrature rule for reference simplex
   switch (tdim)
-  {
-  case 1:
-    setup_qr_reference_interval(order);
-    break;
-  case 2:
-    setup_qr_reference_triangle(order);
-    break;
-  case 3:
-    setup_qr_reference_tetrahedron(order);
-    break;
-  default:
-    throw std::runtime_error("Only implemented for topological dimension 1, 2, 3");
-  }
+    {
+    case 1:
+      setup_qr_reference_interval(order);
+      break;
+    case 2:
+      setup_qr_reference_triangle(order);
+      break;
+    case 3:
+      setup_qr_reference_tetrahedron(order);
+      break;
+    default:
+      throw std::runtime_error("Only implemented for topological dimension 1, 2, 3");
+    }
 
 }
 //-----------------------------------------------------------------------------
 std::pair<std::vector<double>, std::vector<double>>
-  SimplexQuadrature::compute_quadrature_rule(const std::vector<Point>& coordinates,
-                                             std::size_t gdim) const
+SimplexQuadrature::compute_quadrature_rule(const std::vector<Point>& coordinates,
+					   std::size_t gdim) const
 {
   std::size_t tdim = coordinates.size() - 1;
 
   switch (tdim)
-  {
-  case 0:
-    // FIXME: should we return empty qr or should we have detected this earlier?
-    break;
-  case 1:
-    return compute_quadrature_rule_interval(coordinates, gdim);
-    break;
-  case 2:
-    return compute_quadrature_rule_triangle(coordinates, gdim);
-    break;
-  case 3:
-    return compute_quadrature_rule_tetrahedron(coordinates, gdim);
-    break;
-  default:
-    throw std::runtime_error("Only implemented for topological dimension 1, 2, 3");
-  };
-
-  std::pair<std::vector<double>, std::vector<double>> quadrature_rule;
-  return quadrature_rule;
-}
-//-----------------------------------------------------------------------------
-std::pair<std::vector<double>, std::vector<double>>
-  SimplexQuadrature::compute_quadrature_rule_interval(const std::vector<Point>& coordinates,
-						      std::size_t gdim) const
-{
-
-  std::pair<std::vector<double>, std::vector<double>> quadrature_rule;
-
-  // Find the determinant of the Jacobian (inspired by ufc_geometry.h)
-  double det = -1;
-
-  switch (gdim)
-  {
-  case 1:
-  {
-      det = coordinates[1].x() - coordinates[0].x();
-      break;
-  }
-  case 2:
-  {
-    const std::array<double, 2> J = {{coordinates[1].x() - coordinates[0].x(),
-                                      coordinates[1].y() - coordinates[0].y()}};
-    const double det2 = J[0]*J[0] + J[1]*J[1];
-    det = std::sqrt(det2);
-    break;
-  }
-  case 3:
-  {
-    const std::array<double, 3>  J = {{coordinates[1].x() - coordinates[0].x(),
-                                       coordinates[1].y() - coordinates[0].y(),
-                                       coordinates[1].z() - coordinates[0].z()}};
-    const double det2 = J[0]*J[0] + J[1]*J[1];
-    det = std::sqrt(det2);
-    break;
-  }
-  default:
-    throw std::runtime_error("Not implemented for dimension %d");
-  }
-
-  // Map (local) quadrature points (note that _p is a
-  // std::vector<std::vector<double> >)
-  quadrature_rule.first.resize(gdim*_p[0].size());
-  for (std::size_t i = 0; i < _p[0].size(); ++i)
-  {
-    for (std::size_t d = 0; d < gdim; ++d)
     {
-      quadrature_rule.first[d + i*gdim]
-        = 0.5*(coordinates[0][d]*(1. - _p[0][i])
-	       + coordinates[1][d]*(1. + _p[0][i]));
-      assert(std::isfinite(quadrature_rule.first[d + i*gdim]));
-    }
-  }
-  assert(det >= 0);
+    case 0:
+      // FIXME: should we return empty qr or should we have detected this earlier?
+      break;
+    case 1:
+      return compute_quadrature_rule_interval(coordinates, gdim);
+      break;
+    case 2:
+      return compute_quadrature_rule_triangle(coordinates, gdim);
+      break;
+    case 3:
+      return compute_quadrature_rule_tetrahedron(coordinates, gdim);
+      break;
+    default:
+      throw std::runtime_error("Only implemented for topological dimension 1, 2, 3");
+    };
 
-  // Store weights
-  quadrature_rule.second.assign(_w.size(), 0.5*std::abs(det));
-  for (std::size_t i = 0; i < _w.size(); ++i)
-  {
-    quadrature_rule.second[i] *= _w[i];
-    assert(std::isfinite(quadrature_rule.second[i]));
-  }
-  assert(quadrature_rule.first.size() == gdim*quadrature_rule.second.size());
-
+  std::pair<std::vector<double>, std::vector<double>> quadrature_rule;
   return quadrature_rule;
 }
 //-----------------------------------------------------------------------------
 std::pair<std::vector<double>, std::vector<double>>
-SimplexQuadrature::compute_quadrature_rule_triangle(const std::vector<Point>& coordinates,
+SimplexQuadrature::compute_quadrature_rule_interval(const std::vector<Point>& X,
                                                     std::size_t gdim) const
 {
+  if (X.size() != 2) throw std::runtime_error("interval: need 2 vertices");
+  const std::size_t n = _p.size();
 
-  std::pair<std::vector<double>, std::vector<double>> quadrature_rule;
+  std::vector<double> pts(n * gdim);
+  std::vector<double> w(n);
 
-  // Find the determinant of the Jacobian (inspired by ufc_geometry.h)
-  double det = 0; // To keep compiler happy
+  const Point& x0 = X[0];
+  const Point  e  = X[1] - X[0];
 
-  switch (gdim)
-  {
-  case 2:
-  {
-    det = orient2d(coordinates[0], coordinates[1], coordinates[2]);
+  const double L = segment_length(X[0], X[1], gdim);   // physical measure
+  const double ref = 1.0;                              // |[0,1]|
+  const double scale = L / ref;
 
-    break;
-  }
-  case 3:
-  {
-    const std::array<double, 6> J = {{coordinates[1].x() - coordinates[0].x(),
-                                      coordinates[2].x() - coordinates[0].x(),
-                                      coordinates[1].y() - coordinates[0].y(),
-                                      coordinates[2].y() - coordinates[0].y(),
-                                      coordinates[1].z() - coordinates[0].z(),
-                                      coordinates[2].z() - coordinates[0].z()}};
-    const double d_0 = J[2]*J[5] - J[4]*J[3];
-    const double d_1 = J[4]*J[1] - J[0]*J[5];
-    const double d_2 = J[0]*J[3] - J[2]*J[1];
-    const double det2 = d_0*d_0 + d_1*d_1 + d_2*d_2;
-    det = std::sqrt(det2);
-
-    break;
-  }
-  default:
-    throw std::runtime_error("Not implemented for dimension ");
-  }
-
-  // Store points
-  quadrature_rule.first.resize(gdim*_p.size());
-  for (std::size_t i = 0; i < _p.size(); ++i)
-  {
-    for (std::size_t d = 0; d < gdim; ++d)
+  for (std::size_t i = 0; i < n; ++i)
     {
-      quadrature_rule.first[d + i*gdim]
-        = _p[i][0]*coordinates[0][d]
-        + _p[i][1]*coordinates[1][d]
-        + (1. - _p[i][0] - _p[i][1])*coordinates[2][d];
-      assert(std::isfinite(quadrature_rule.first[d + i*gdim]));
+      const double r = _p[i][0];
+      const Point p = x0 + e * r;
+      write_point(&pts[i*gdim], gdim, p);
+      w[i] = _w[i] * scale;
     }
-  }
 
-  // Store weights
-  quadrature_rule.second.assign(_w.size(), 0.5*std::abs(det));
-  for (std::size_t i = 0; i < _w.size(); ++i)
-  {
-    quadrature_rule.second[i] *= _w[i];
-    assert(std::isfinite(quadrature_rule.second[i]));
-  }
-
-  assert(quadrature_rule.first.size() == gdim*quadrature_rule.second.size());
-
-  return quadrature_rule;
+  return {std::move(pts), std::move(w)};
 }
+
 //-----------------------------------------------------------------------------
 std::pair<std::vector<double>, std::vector<double>>
-SimplexQuadrature::compute_quadrature_rule_tetrahedron(const std::vector<Point>& coordinates,
+SimplexQuadrature::compute_quadrature_rule_triangle(const std::vector<Point>& X,
+                                                    std::size_t gdim) const
+{
+  if (X.size() != 3) throw std::runtime_error("triangle: need 3 vertices");
+  const std::size_t n = _p.size();
+
+  std::vector<double> pts(n * gdim);
+  std::vector<double> w(n);
+
+  const Point& x0 = X[0];
+  const Point  e1 = X[1] - X[0];
+  const Point  e2 = X[2] - X[0];
+
+  const double A = triangle_area(X[0], X[1], X[2], gdim);
+  const double ref = 0.5; // reference triangle area
+  const double scale = A / ref;
+
+  for (std::size_t i = 0; i < n; ++i)
+    {
+      const double r = _p[i][0];
+      const double s = _p[i][1];
+      const Point p = x0 + e1 * r + e2 * s;
+      write_point(&pts[i*gdim], gdim, p);
+      w[i] = _w[i] * scale;
+    }
+
+  return {std::move(pts), std::move(w)};
+}
+
+//-----------------------------------------------------------------------------
+std::pair<std::vector<double>, std::vector<double>>
+SimplexQuadrature::compute_quadrature_rule_tetrahedron(const std::vector<Point>& X,
                                                        std::size_t gdim) const
 {
+  if (X.size() != 4) throw std::runtime_error("tetrahedron: need 4 vertices");
+  if (gdim != 3) throw std::runtime_error("tetrahedron: requires gdim=3");
+  const std::size_t n = _p.size();
 
-  std::pair<std::vector<double>, std::vector<double>> quadrature_rule;
+  std::vector<double> pts(n * 3);
+  std::vector<double> w(n);
 
-  // Find the determinant of the Jacobian (from ufc_geometry.h)
-  double det = 0; // To keep compiler happy
+  const Point& x0 = X[0];
+  const Point  e1 = X[1] - X[0];
+  const Point  e2 = X[2] - X[0];
+  const Point  e3 = X[3] - X[0];
 
-  switch (gdim)
-  {
-  case 3:
-  {
-    const std::array<double, 9> J = {{coordinates[1].x() - coordinates[0].x(),
-                                      coordinates[2].x() - coordinates[0].x(),
-                                      coordinates[3].x() - coordinates[0].x(),
-                                      coordinates[1].y() - coordinates[0].y(),
-                                      coordinates[2].y() - coordinates[0].y(),
-                                      coordinates[3].y() - coordinates[0].y(),
-                                      coordinates[1].z() - coordinates[0].z(),
-                                      coordinates[2].z() - coordinates[0].z(),
-                                      coordinates[3].z() - coordinates[0].z()}};
-    const std::array<double, 3> d = {{J[4]*J[8] - J[5]*J[7],
-                                      J[2]*J[7] - J[1]*J[8],
-                                      J[1]*J[5] - J[2]*J[4]}};
-    det = J[0]*d[0] + J[3]*d[1] + J[6]*d[2];
-    break;
-  }
-  default:
-    throw std::runtime_error("Not implemented for dimension ");
-  }
+  const double V = tetra_volume(X[0], X[1], X[2], X[3]);
+  const double ref = 1.0 / 6.0;
+  const double scale = V / ref;
 
-  // Store points
-  quadrature_rule.first.resize(gdim*_p.size());
-  for (std::size_t i = 0; i < _p.size(); ++i)
-  {
-    for (std::size_t d = 0; d < gdim; ++d)
+  for (std::size_t i = 0; i < n; ++i)
     {
-      quadrature_rule.first[d + i*gdim]
-        = _p[i][0]*coordinates[0][d]
-        + _p[i][1]*coordinates[1][d]
-        + _p[i][2]*coordinates[2][d]
-        + (1. - _p[i][0] - _p[i][1] - _p[i][2])*coordinates[3][d];
+      const double r = _p[i][0];
+      const double s = _p[i][1];
+      const double t = _p[i][2];
+      const Point p = x0 + e1 * r + e2 * s + e3 * t;
+      pts[i*3 + 0] = p.x();
+      pts[i*3 + 1] = p.y();
+      pts[i*3 + 2] = p.z();
+      w[i] = _w[i] * scale;
     }
-  }
 
-  // Store weights
-  quadrature_rule.second.assign(_w.size(), std::abs(det)/6.0);
-  for (std::size_t i = 0; i < _w.size(); ++i)
-    quadrature_rule.second[i] *= _w[i];
-
-  assert(quadrature_rule.first.size() == gdim*quadrature_rule.second.size());
-
-  return quadrature_rule;
+  return {std::move(pts), std::move(w)};
 }
+
 //-----------------------------------------------------------------------------
 std::vector<std::size_t>
 SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>& qr,
@@ -271,10 +181,10 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
   // than choose(N + gdim, gdim) points.
   const std::size_t N_compressed_min = choose(N + gdim, gdim);
   if (qr.second.size() <= N_compressed_min)
-  {
-    // We cannot improve this rule. Return empty vector
-    return std::vector<std::size_t>();
-  }
+    {
+      // We cannot improve this rule. Return empty vector
+      return std::vector<std::size_t>();
+    }
 
   // Copy the input qr since we'll overwrite the input
   const std::pair<std::vector<double>, std::vector<double>> qr_input = qr;
@@ -307,10 +217,10 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
   // indices for these weights.
   std::vector<std::size_t> indices;
   for (int i = 0; i < w_new.size(); ++i)
-  {
-    if (std::abs(w_new[i]) > 0.0)
-      indices.push_back(i);
-  }
+    {
+      if (std::abs(w_new[i]) > 0.0)
+	indices.push_back(i);
+    }
 
   // Resize qr and overwrite the points and weights
   assert(indices.size() <= N_compressed_min);
@@ -318,14 +228,14 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
   qr.second.resize(indices.size());
 
   for (std::size_t i = 0; i < indices.size(); ++i)
-  {
-    // Save points
-    for (std::size_t d = 0; d < gdim; ++d)
-      qr.first[gdim*i + d] = qr_input.first[gdim*indices[i] + d];
+    {
+      // Save points
+      for (std::size_t d = 0; d < gdim; ++d)
+	qr.first[gdim*i + d] = qr_input.first[gdim*indices[i] + d];
 
-    // Save weights
-    qr.second[i] = w_new[indices[i]];
-  }
+      // Save weights
+      qr.second[i] = w_new[indices[i]];
+    }
 
   // Return indices. These are useful for mapping additional data, for
   // example the normals.
@@ -334,175 +244,40 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
 //-----------------------------------------------------------------------------
 void SimplexQuadrature::setup_qr_reference_interval(std::size_t order)
 {
-  // Create quadrature rule with points on reference element [-1, 1].
-  _p.resize(1);
-  legendre_compute_glr(order, _p[0], _w);
+  const auto rr = tables::interval_rule_legendre(order);
+  _p.assign(rr.n, std::vector<double>(1));
+  _w.assign(rr.w, rr.w + rr.n);
+  for (std::size_t i = 0; i < rr.n; ++i)
+    _p[i][0] = rr.pts[3*i + 0]; // r
 }
+
 //-----------------------------------------------------------------------------
 void SimplexQuadrature::setup_qr_reference_triangle(std::size_t order)
 {
-  // Create quadrature rule with points on reference triangle [0, 0],
-  // [1, 0] and [0, 1]
-  return dunavant_rule(order, _p, _w);
+  if (order > 20) throw std::runtime_error("Triangle quadrature supported up to order 20");
+  const auto rr = tables::triangle_rule_dunavant(order);
+  _p.assign(rr.n, std::vector<double>(2));
+  _w.assign(rr.w, rr.w + rr.n);
+  for (std::size_t i = 0; i < rr.n; ++i)
+    {
+      _p[i][0] = rr.pts[3*i + 0]; // r
+      _p[i][1] = rr.pts[3*i + 1]; // s
+    }
 }
+
 //-----------------------------------------------------------------------------
 void SimplexQuadrature::setup_qr_reference_tetrahedron(std::size_t order)
 {
-  // FIXME: Replace these hard coded rules by a general function
-
-  switch (order)
-  {
-  case 1:
-    // Assign weight 1 and midpoint
-    _w.assign(1, 1.);
-    _p.assign(1, std::vector<double>(3, 0.25));
-
-    break;
-  case 2:
-    // Assign weights
-    _w.assign(4, 0.25);
-
-    // Assign points
-    _p.assign(4, std::vector<double>(3, 0.138196601125011));
-    _p[0][0] = _p[1][1] = _p[2][2] = 0.585410196624969;
-
-    break;
-  case 3:
-    // Assign weights
-    _w = { -4./5.,
-           9./20.,
-           9./20.,
-           9./20.,
-           9./20. };
-
-    // Assign points
-    _p = { { 0.25,  0.25,  0.25  },
-	   { 1./6., 1./6., 1./6. },
-	   { 1./6., 1./6., 0.5,  },
-	   { 1./6., 0.5,   1./6. },
-	   { 0.5,   1./6., 1./6. } };
-
-    break;
-  case 4:
-    // Assign weights
-    // FIXME: Find new rule to avoid negative weight
-    _w = { -0.0789333333333330,
-	   0.0457333333333335,
-	   0.0457333333333335,
-	   0.0457333333333335,
-	   0.0457333333333335,
-	   0.1493333333333332,
-	   0.1493333333333332,
-	   0.1493333333333332,
-	   0.1493333333333332,
-	   0.1493333333333332,
-	   0.1493333333333332 };
-
-    // Assign points
-    _p = { { 0.2500000000000000, 0.2500000000000000, 0.2500000000000000 },
-	   { 0.0714285714285715, 0.0714285714285715, 0.0714285714285715 },
-	   { 0.0714285714285715, 0.0714285714285715, 0.7857142857142855 },
-	   { 0.0714285714285715, 0.7857142857142855, 0.0714285714285715 },
-	   { 0.7857142857142855, 0.0714285714285715, 0.0714285714285715 },
-	   { 0.3994035761667990, 0.3994035761667990, 0.1005964238332010 },
-	   { 0.3994035761667990, 0.1005964238332010, 0.3994035761667990 },
-	   { 0.1005964238332010, 0.3994035761667990, 0.3994035761667990 },
-	   { 0.3994035761667990, 0.1005964238332010, 0.1005964238332010 },
-	   { 0.1005964238332010, 0.3994035761667990, 0.1005964238332010 },
-	   { 0.1005964238332010, 0.1005964238332010, 0.3994035761667990 } };
-
-    break;
-  case 5:
-    // Assign weights
-    _w = { 0.0734930431163618,
-	   0.0734930431163618,
-	   0.0734930431163618,
-	   0.0734930431163618,
-	   0.1126879257180158,
-	   0.1126879257180158,
-	   0.1126879257180158,
-	   0.1126879257180158,
-	   0.0425460207770813,
-	   0.0425460207770813,
-	   0.0425460207770813,
-	   0.0425460207770813,
-	   0.0425460207770813,
-	   0.0425460207770813 };
-
-    // Assign points
-    _p = { { 0.0927352503108910, 0.0927352503108910, 0.0927352503108910 },
-	   { 0.7217942490673265, 0.0927352503108910, 0.0927352503108910 },
-	   { 0.0927352503108910, 0.7217942490673265, 0.0927352503108910 },
-	   { 0.0927352503108910, 0.0927352503108910, 0.7217942490673265 },
-	   { 0.3108859192633005, 0.3108859192633005, 0.3108859192633005 },
-	   { 0.0673422422100980, 0.3108859192633005, 0.3108859192633005 },
-	   { 0.3108859192633005, 0.0673422422100980, 0.3108859192633005 },
-	   { 0.3108859192633005, 0.3108859192633005, 0.0673422422100980 },
-	   { 0.4544962958743505, 0.4544962958743505, 0.0455037041256495 },
-	   { 0.4544962958743505, 0.0455037041256495, 0.4544962958743505 },
-	   { 0.0455037041256495, 0.4544962958743505, 0.4544962958743505 },
-	   { 0.4544962958743505, 0.0455037041256495, 0.0455037041256495 },
-	   { 0.0455037041256495, 0.4544962958743505, 0.0455037041256495 },
-	   { 0.0455037041256495, 0.0455037041256495, 0.4544962958743505 } };
-
-    break;
-  case 6:
-    // Assign weights
-    _w = { 0.0399227502581678,
-	   0.0399227502581678,
-	   0.0399227502581678,
-	   0.0399227502581678,
-	   0.0100772110553205,
-	   0.0100772110553205,
-	   0.0100772110553205,
-	   0.0100772110553205,
-	   0.0553571815436550,
-	   0.0553571815436550,
-	   0.0553571815436550,
-	   0.0553571815436550,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855,
-	   0.0482142857142855 };
-
-    // Assign points
-    _p = { { 0.2146028712591520, 0.2146028712591520, 0.2146028712591520 },
-	   { 0.3561913862225440, 0.2146028712591520, 0.2146028712591520 },
-	   { 0.2146028712591520, 0.3561913862225440, 0.2146028712591520 },
-	   { 0.2146028712591520, 0.2146028712591520, 0.3561913862225440 },
-	   { 0.0406739585346115, 0.0406739585346115, 0.0406739585346115 },
-	   { 0.8779781243961660, 0.0406739585346115, 0.0406739585346115 },
-	   { 0.0406739585346115, 0.8779781243961660, 0.0406739585346115 },
-	   { 0.0406739585346115, 0.0406739585346115, 0.8779781243961660 },
-	   { 0.3223378901422755, 0.3223378901422755, 0.3223378901422755 },
-	   { 0.0329863295731735, 0.3223378901422755, 0.3223378901422755 },
-	   { 0.3223378901422755, 0.0329863295731735, 0.3223378901422755 },
-	   { 0.3223378901422755, 0.3223378901422755, 0.0329863295731735 },
-	   { 0.0636610018750175, 0.0636610018750175, 0.2696723314583160 },
-	   { 0.0636610018750175, 0.2696723314583160, 0.0636610018750175 },
-	   { 0.0636610018750175, 0.0636610018750175, 0.6030056647916490 },
-	   { 0.0636610018750175, 0.6030056647916490, 0.0636610018750175 },
-	   { 0.0636610018750175, 0.2696723314583160, 0.6030056647916490 },
-	   { 0.0636610018750175, 0.6030056647916490, 0.2696723314583160 },
-	   { 0.2696723314583160, 0.0636610018750175, 0.0636610018750175 },
-	   { 0.2696723314583160, 0.0636610018750175, 0.6030056647916490 },
-	   { 0.2696723314583160, 0.6030056647916490, 0.0636610018750175 },
-	   { 0.6030056647916490, 0.0636610018750175, 0.2696723314583160 },
-	   { 0.6030056647916490, 0.0636610018750175, 0.0636610018750175 },
-	   { 0.6030056647916490, 0.2696723314583160, 0.0636610018750175 } };
-
-    break;
-  default:
-    throw std::runtime_error("Not implemented for order ");
-  }
+  if (order > 8) throw std::runtime_error("Tetrahedron quadrature supported up to order 8");
+  const auto rr = tables::tetra_rule_keast(order);
+  _p.assign(rr.n, std::vector<double>(3));
+  _w.assign(rr.w, rr.w + rr.n);
+  for (std::size_t i = 0; i < rr.n; ++i)
+    {
+      _p[i][0] = rr.pts[3*i + 0]; // r
+      _p[i][1] = rr.pts[3*i + 1]; // s
+      _p[i][2] = rr.pts[3*i + 2]; // t
+    }
 }
 //-----------------------------------------------------------------------------
 Eigen::MatrixXd SimplexQuadrature::Chebyshev_Vandermonde_matrix
@@ -515,20 +290,20 @@ Eigen::MatrixXd SimplexQuadrature::Chebyshev_Vandermonde_matrix
   Eigen::VectorXd x(qr.second.size());
 
   for (std::size_t d = 0; d < gdim; ++d)
-  {
-    // Extract coordinates in one dimension
-    for (std::size_t i = 0; i < qr.second.size(); ++i)
-      x(i) = qr.first[i*gdim + d];
+    {
+      // Extract coordinates in one dimension
+      for (std::size_t i = 0; i < qr.second.size(); ++i)
+	x(i) = qr.first[i*gdim + d];
 
-    // Map points to [-1, 1]
-    const double xmin = x.minCoeff();
-    const double xmax = x.maxCoeff();
-    const double hx = xmax - xmin;
-    const Eigen::VectorXd xmap = (2./hx) * x - ((xmin+xmax)/hx) * Eigen::VectorXd::Ones(x.size());
+      // Map points to [-1, 1]
+      const double xmin = x.minCoeff();
+      const double xmax = x.maxCoeff();
+      const double hx = xmax - xmin;
+      const Eigen::VectorXd xmap = (2./hx) * x - ((xmin+xmax)/hx) * Eigen::VectorXd::Ones(x.size());
 
-    // Evaluate the basis
-    T[d] = Chebyshev_polynomial(xmap, N);
-  }
+      // Evaluate the basis
+      T[d] = Chebyshev_polynomial(xmap, N);
+    }
 
   // Find the order of the polynomials in graded lexicographic
   // ordering
@@ -540,21 +315,21 @@ Eigen::MatrixXd SimplexQuadrature::Chebyshev_Vandermonde_matrix
 
   // The first column is always [1, 1, ..., 1], hence we can start from 1
   for (std::size_t i = 1; i < n_cols; ++i)
-  {
-    // Pick out the correct order of polynomial from the P
-    // matrix. Start with dimension 0.
-    const std::size_t d = 0;
-    const std::size_t grlex_order = P[i][d];
-    Eigen::VectorXd V_col = T[d][grlex_order];
-
-    // Do a .* style multiplication for each other dimension
-    for (std::size_t d = 1; d < gdim; ++d)
     {
+      // Pick out the correct order of polynomial from the P
+      // matrix. Start with dimension 0.
+      const std::size_t d = 0;
       const std::size_t grlex_order = P[i][d];
-      V_col = V_col.cwiseProduct(T[d][grlex_order]);
+      Eigen::VectorXd V_col = T[d][grlex_order];
+
+      // Do a .* style multiplication for each other dimension
+      for (std::size_t d = 1; d < gdim; ++d)
+	{
+	  const std::size_t grlex_order = P[i][d];
+	  V_col = V_col.cwiseProduct(T[d][grlex_order]);
+	}
+      V.col(i) = V_col;
     }
-    V.col(i) = V_col;
-  }
 
   return V;
 }
@@ -577,11 +352,11 @@ SimplexQuadrature::Chebyshev_polynomial(const Eigen::VectorXd& x,
   T[0] = Eigen::VectorXd::Ones(x.size());
 
   if (N >= 1)
-  {
-    T[1] = x;
-    for (std::size_t k = 2; k <= N; ++k)
-      T[k] = 2*x.cwiseProduct(T[k-1]) - T[k-2];
-  }
+    {
+      T[1] = x;
+      for (std::size_t k = 2; k <= N; ++k)
+	T[k] = 2*x.cwiseProduct(T[k-1]) - T[k-2];
+    }
 
   return T;
 }
@@ -607,34 +382,34 @@ SimplexQuadrature::grlex(std::size_t gdim, std::size_t N)
 
   // FIXME: Make this a dimension independent loop
   switch (gdim)
-  {
-  case 2:
-    for (std::size_t sum = 0, row = 0; sum <= N; ++sum)
-      for (std::size_t xi = 0; xi <= N; ++xi)
-	for (std::size_t yi = 0; yi <= N; ++yi)
-	  if (xi + yi == sum)
-	  {
-	    P[row][0] = xi;
-	    P[row][1] = yi;
-	    row++;
-	  }
-    break;
-  case 3:
-    for (std::size_t sum = 0, row = 0; sum <= N; ++sum)
-      for (std::size_t xi = 0; xi <= N; ++xi)
-	for (std::size_t yi = 0; yi <= N; ++yi)
-	  for (std::size_t zi = 0; zi <= N; ++zi)
-	    if (xi + yi + zi == sum)
-	    {
-	      P[row][0] = xi;
-	      P[row][1] = yi;
-	      P[row][2] = zi;
-	      row++;
-	    }
-    break;
-  default:
-    assert(false);
-  }
+    {
+    case 2:
+      for (std::size_t sum = 0, row = 0; sum <= N; ++sum)
+	for (std::size_t xi = 0; xi <= N; ++xi)
+	  for (std::size_t yi = 0; yi <= N; ++yi)
+	    if (xi + yi == sum)
+	      {
+		P[row][0] = xi;
+		P[row][1] = yi;
+		row++;
+	      }
+      break;
+    case 3:
+      for (std::size_t sum = 0, row = 0; sum <= N; ++sum)
+	for (std::size_t xi = 0; xi <= N; ++xi)
+	  for (std::size_t yi = 0; yi <= N; ++yi)
+	    for (std::size_t zi = 0; zi <= N; ++zi)
+	      if (xi + yi + zi == sum)
+		{
+		  P[row][0] = xi;
+		  P[row][1] = yi;
+		  P[row][2] = zi;
+		  row++;
+		}
+      break;
+    default:
+      assert(false);
+    }
 
   return P;
 }
@@ -711,47 +486,47 @@ void SimplexQuadrature::dunavant_rule(std::size_t rule,
   std::size_t o = 0;
 
   for (std::size_t s = 0; s < suborder_num; s++)
-  {
-    if (suborder[s] == 1)
     {
-      p[o][0] = suborder_xyz[0+s*3];
-      p[o][1] = suborder_xyz[1+s*3];
-      w[o] = suborder_w[s];
-      o = o + 1;
-    }
-    else if (suborder[s] == 3)
-    {
-      for (std::size_t k = 0; k < 3; k++)
-      {
-        p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
-        p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
-        w[o] = suborder_w[s];
-        o = o + 1;
-      }
-    }
-    else if (suborder[s] == 6)
-    {
-      for (std::size_t k = 0; k < 3; k++)
-      {
-        p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
-        p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
-        w[o] = suborder_w[s];
-        o = o + 1;
-      }
+      if (suborder[s] == 1)
+	{
+	  p[o][0] = suborder_xyz[0+s*3];
+	  p[o][1] = suborder_xyz[1+s*3];
+	  w[o] = suborder_w[s];
+	  o = o + 1;
+	}
+      else if (suborder[s] == 3)
+	{
+	  for (std::size_t k = 0; k < 3; k++)
+	    {
+	      p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
+	      p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
+	      w[o] = suborder_w[s];
+	      o = o + 1;
+	    }
+	}
+      else if (suborder[s] == 6)
+	{
+	  for (std::size_t k = 0; k < 3; k++)
+	    {
+	      p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
+	      p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
+	      w[o] = suborder_w[s];
+	      o = o + 1;
+	    }
 
-      for (std::size_t k = 0; k < 3; k++)
-      {
-        p[o][0] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
-        p[o][1] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
-        w[o] = suborder_w[s];
-        o = o + 1;
-      }
+	  for (std::size_t k = 0; k < 3; k++)
+	    {
+	      p[o][0] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
+	      p[o][1] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
+	      w[o] = suborder_w[s];
+	      o = o + 1;
+	    }
+	}
+      else
+	{
+	  throw std::runtime_error("Dunavant rule not implemented for suborder ");
+	}
     }
-    else
-    {
-      throw std::runtime_error("Dunavant rule not implemented for suborder ");
-    }
-  }
 
 }
 //****************************************************************************80
@@ -806,9 +581,9 @@ std::size_t SimplexQuadrature::dunavant_order_num(std::size_t rule)
 
   order_num = 0;
   for (order = 0; order < suborder_num; order++)
-  {
-    order_num = order_num + suborder[order];
-  }
+    {
+      order_num = order_num + suborder[order];
+    }
 
   return order_num;
 }
@@ -859,229 +634,229 @@ std::vector<std::size_t> SimplexQuadrature::dunavant_suborder(int rule, int subo
   std::vector<std::size_t> suborder(suborder_num);
 
   if (rule == 1)
-  {
-    suborder[0] = 1;
-  }
+    {
+      suborder[0] = 1;
+    }
   else if (rule == 2)
-  {
-    suborder[0] = 3;
-  }
+    {
+      suborder[0] = 3;
+    }
   else if (rule == 3)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+    }
   else if (rule == 4)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+    }
   else if (rule == 5)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+    }
   else if (rule == 6)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-    suborder[2] = 6;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+      suborder[2] = 6;
+    }
   else if (rule == 7)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 6;
+    }
   else if (rule == 8)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 6;
+    }
   else if (rule == 9)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 6;
+    }
   else if (rule == 10)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 6;
-    suborder[4] = 6;
-    suborder[5] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 6;
+      suborder[4] = 6;
+      suborder[5] = 6;
+    }
   else if (rule == 11)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 6;
-    suborder[6] = 6;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 6;
+      suborder[6] = 6;
+    }
   else if (rule == 12)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 6;
-    suborder[6] = 6;
-    suborder[7] = 6;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 6;
+      suborder[6] = 6;
+      suborder[7] = 6;
+    }
   else if (rule == 13)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 6;
-    suborder[8] = 6;
-    suborder[9] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 6;
+      suborder[8] = 6;
+      suborder[9] = 6;
+    }
   else if (rule == 14)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 6;
-    suborder[7] = 6;
-    suborder[8] = 6;
-    suborder[9] = 6;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 6;
+      suborder[7] = 6;
+      suborder[8] = 6;
+      suborder[9] = 6;
+    }
   else if (rule == 15)
-  {
-    suborder[0] = 3;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 6;
-    suborder[7] = 6;
-    suborder[8] = 6;
-    suborder[9] = 6;
-    suborder[10] = 6;
-  }
+    {
+      suborder[0] = 3;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 6;
+      suborder[7] = 6;
+      suborder[8] = 6;
+      suborder[9] = 6;
+      suborder[10] = 6;
+    }
   else if (rule == 16)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 3;
-    suborder[8] = 6;
-    suborder[9] = 6;
-    suborder[10] = 6;
-    suborder[11] = 6;
-    suborder[12] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 3;
+      suborder[8] = 6;
+      suborder[9] = 6;
+      suborder[10] = 6;
+      suborder[11] = 6;
+      suborder[12] = 6;
+    }
   else if (rule == 17)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 3;
-    suborder[8] = 3;
-    suborder[9] = 6;
-    suborder[10] = 6;
-    suborder[11] = 6;
-    suborder[12] = 6;
-    suborder[13] = 6;
-    suborder[14] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 3;
+      suborder[8] = 3;
+      suborder[9] = 6;
+      suborder[10] = 6;
+      suborder[11] = 6;
+      suborder[12] = 6;
+      suborder[13] = 6;
+      suborder[14] = 6;
+    }
   else if (rule == 18)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 3;
-    suborder[8] = 3;
-    suborder[9] = 3;
-    suborder[10] = 6;
-    suborder[11] = 6;
-    suborder[12] = 6;
-    suborder[13] = 6;
-    suborder[14] = 6;
-    suborder[15] = 6;
-    suborder[16] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 3;
+      suborder[8] = 3;
+      suborder[9] = 3;
+      suborder[10] = 6;
+      suborder[11] = 6;
+      suborder[12] = 6;
+      suborder[13] = 6;
+      suborder[14] = 6;
+      suborder[15] = 6;
+      suborder[16] = 6;
+    }
   else if (rule == 19)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 3;
-    suborder[8] = 3;
-    suborder[9] = 6;
-    suborder[10] = 6;
-    suborder[11] = 6;
-    suborder[12] = 6;
-    suborder[13] = 6;
-    suborder[14] = 6;
-    suborder[15] = 6;
-    suborder[16] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 3;
+      suborder[8] = 3;
+      suborder[9] = 6;
+      suborder[10] = 6;
+      suborder[11] = 6;
+      suborder[12] = 6;
+      suborder[13] = 6;
+      suborder[14] = 6;
+      suborder[15] = 6;
+      suborder[16] = 6;
+    }
   else if (rule == 20)
-  {
-    suborder[0] = 1;
-    suborder[1] = 3;
-    suborder[2] = 3;
-    suborder[3] = 3;
-    suborder[4] = 3;
-    suborder[5] = 3;
-    suborder[6] = 3;
-    suborder[7] = 3;
-    suborder[8] = 3;
-    suborder[9] = 3;
-    suborder[10] = 3;
-    suborder[11] = 6;
-    suborder[12] = 6;
-    suborder[13] = 6;
-    suborder[14] = 6;
-    suborder[15] = 6;
-    suborder[16] = 6;
-    suborder[17] = 6;
-    suborder[18] = 6;
-  }
+    {
+      suborder[0] = 1;
+      suborder[1] = 3;
+      suborder[2] = 3;
+      suborder[3] = 3;
+      suborder[4] = 3;
+      suborder[5] = 3;
+      suborder[6] = 3;
+      suborder[7] = 3;
+      suborder[8] = 3;
+      suborder[9] = 3;
+      suborder[10] = 3;
+      suborder[11] = 6;
+      suborder[12] = 6;
+      suborder[13] = 6;
+      suborder[14] = 6;
+      suborder[15] = 6;
+      suborder[16] = 6;
+      suborder[17] = 6;
+      suborder[18] = 6;
+    }
   else
-  {
-    throw std::runtime_error("dunavant_suborder not implemented for rule ");
-  }
+    {
+      throw std::runtime_error("dunavant_suborder not implemented for rule ");
+    }
 
   return suborder;
 }
@@ -1130,89 +905,89 @@ std::size_t SimplexQuadrature::dunavant_suborder_num(int rule)
   std::size_t suborder_num = 0;
 
   if (rule == 1)
-  {
-    suborder_num = 1;
-  }
+    {
+      suborder_num = 1;
+    }
   else if (rule == 2)
-  {
-    suborder_num = 1;
-  }
+    {
+      suborder_num = 1;
+    }
   else if (rule == 3)
-  {
-    suborder_num = 2;
-  }
+    {
+      suborder_num = 2;
+    }
   else if (rule == 4)
-  {
-    suborder_num = 2;
-  }
+    {
+      suborder_num = 2;
+    }
   else if (rule == 5)
-  {
-    suborder_num = 3;
-  }
+    {
+      suborder_num = 3;
+    }
   else if (rule == 6)
-  {
-    suborder_num = 3;
-  }
+    {
+      suborder_num = 3;
+    }
   else if (rule == 7)
-  {
-    suborder_num = 4;
-  }
+    {
+      suborder_num = 4;
+    }
   else if (rule == 8)
-  {
-    suborder_num = 5;
-  }
+    {
+      suborder_num = 5;
+    }
   else if (rule == 9)
-  {
-    suborder_num = 6;
-  }
+    {
+      suborder_num = 6;
+    }
   else if (rule == 10)
-  {
-    suborder_num = 6;
-  }
+    {
+      suborder_num = 6;
+    }
   else if (rule == 11)
-  {
-    suborder_num = 7;
-  }
+    {
+      suborder_num = 7;
+    }
   else if (rule == 12)
-  {
-    suborder_num = 8;
-  }
+    {
+      suborder_num = 8;
+    }
   else if (rule == 13)
-  {
-    suborder_num = 10;
-  }
+    {
+      suborder_num = 10;
+    }
   else if (rule == 14)
-  {
-    suborder_num = 10;
-  }
+    {
+      suborder_num = 10;
+    }
   else if (rule == 15)
-  {
-    suborder_num = 11;
-  }
+    {
+      suborder_num = 11;
+    }
   else if (rule == 16)
-  {
-    suborder_num = 13;
-  }
+    {
+      suborder_num = 13;
+    }
   else if (rule == 17)
-  {
-    suborder_num = 15;
-  }
+    {
+      suborder_num = 15;
+    }
   else if (rule == 18)
-  {
-    suborder_num = 17;
-  }
+    {
+      suborder_num = 17;
+    }
   else if (rule == 19)
-  {
-    suborder_num = 17;
-  }
+    {
+      suborder_num = 17;
+    }
   else if (rule == 20)
-  {
-    suborder_num = 19;
-  }
+    {
+      suborder_num = 19;
+    }
   else
-  {
-    throw std::runtime_error("dunavant_suborder_num not implemented for rule ");
-  }
+    {
+      throw std::runtime_error("dunavant_suborder_num not implemented for rule ");
+    }
 
   return suborder_num;
 }
@@ -1267,89 +1042,89 @@ void SimplexQuadrature::dunavant_subrule(std::size_t rule,
 //
 {
   if (rule == 1)
-  {
-    dunavant_subrule_01(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_01(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 2)
-  {
-    dunavant_subrule_02(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_02(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 3)
-  {
-    dunavant_subrule_03(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_03(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 4)
-  {
-    dunavant_subrule_04(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_04(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 5)
-  {
-    dunavant_subrule_05(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_05(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 6)
-  {
-    dunavant_subrule_06(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_06(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 7)
-  {
-    dunavant_subrule_07(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_07(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 8)
-  {
-    dunavant_subrule_08(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_08(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 9)
-  {
-    dunavant_subrule_09(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_09(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 10)
-  {
-    dunavant_subrule_10(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_10(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 11)
-  {
-    dunavant_subrule_11(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_11(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 12)
-  {
-    dunavant_subrule_12(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_12(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 13)
-  {
-    dunavant_subrule_13(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_13(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 14)
-  {
-    dunavant_subrule_14(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_14(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 15)
-  {
-    dunavant_subrule_15(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_15(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 16)
-  {
-    dunavant_subrule_16(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_16(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 17)
-  {
-    dunavant_subrule_17(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_17(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 18)
-  {
-    dunavant_subrule_18(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_18(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 19)
-  {
-    dunavant_subrule_19(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_19(suborder_num, suborder_xyz, suborder_w);
+    }
   else if (rule == 20)
-  {
-    dunavant_subrule_20(suborder_num, suborder_xyz, suborder_w);
-  }
+    {
+      dunavant_subrule_20(suborder_num, suborder_xyz, suborder_w);
+    }
   else
-  {
-    throw std::runtime_error("dunavant_subrule not implemented for rule ");
-  }
+    {
+      throw std::runtime_error("dunavant_subrule not implemented for rule ");
+    }
 
   return;
 }
@@ -1408,16 +1183,16 @@ void SimplexQuadrature::dunavant_subrule_01(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_01[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_01[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_01[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_01[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_01[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_01[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_01[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_01[s];
+    }
 
   return;
 }
@@ -1476,16 +1251,16 @@ void SimplexQuadrature::dunavant_subrule_02(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_02[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_02[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_02[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_02[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_02[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_02[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_02[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_02[s];
+    }
 
   return;
 }
@@ -1546,16 +1321,16 @@ void SimplexQuadrature::dunavant_subrule_03(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_03[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_03[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_03[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_03[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_03[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_03[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_03[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_03[s];
+    }
 
   return;
 }
@@ -1616,16 +1391,16 @@ void SimplexQuadrature::dunavant_subrule_04(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_04[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_04[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_04[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_04[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_04[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_04[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_04[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_04[s];
+    }
 
   return;
 }
@@ -1688,16 +1463,16 @@ void SimplexQuadrature::dunavant_subrule_05(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_05[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_05[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_05[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_05[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_05[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_05[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_05[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_05[s];
+    }
 
   return;
 }
@@ -1760,16 +1535,16 @@ void SimplexQuadrature::dunavant_subrule_06(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_06[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_06[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_06[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_06[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_06[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_06[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_06[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_06[s];
+    }
 
   return;
 }
@@ -1834,16 +1609,16 @@ void SimplexQuadrature::dunavant_subrule_07(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_07[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_07[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_07[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_07[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_07[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_07[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_07[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_07[s];
+    }
 
   return;
 }
@@ -1910,16 +1685,16 @@ void SimplexQuadrature::dunavant_subrule_08(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_08[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_08[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_08[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_08[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_08[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_08[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_08[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_08[s];
+    }
 
   return;
 }
@@ -1988,16 +1763,16 @@ void SimplexQuadrature::dunavant_subrule_09(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_09[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_09[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_09[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_09[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_09[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_09[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_09[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_09[s];
+    }
 
   return;
 }
@@ -2066,16 +1841,16 @@ void SimplexQuadrature::dunavant_subrule_10(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_10[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_10[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_10[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_10[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_10[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_10[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_10[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_10[s];
+    }
 
   return;
 }
@@ -2146,16 +1921,16 @@ void SimplexQuadrature::dunavant_subrule_11(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_11[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_11[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_11[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_11[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_11[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_11[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_11[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_11[s];
+    }
 
   return;
 }
@@ -2228,16 +2003,16 @@ void SimplexQuadrature::dunavant_subrule_12(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_12[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_12[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_12[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_12[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_12[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_12[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_12[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_12[s];
+    }
 
   return;
 }
@@ -2314,16 +2089,16 @@ void SimplexQuadrature::dunavant_subrule_13(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_13[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_13[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_13[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_13[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_13[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_13[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_13[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_13[s];
+    }
 
   return;
 }
@@ -2400,16 +2175,16 @@ void SimplexQuadrature::dunavant_subrule_14(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_14[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_14[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_14[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_14[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_14[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_14[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_14[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_14[s];
+    }
 
   return;
 }
@@ -2488,16 +2263,16 @@ void SimplexQuadrature::dunavant_subrule_15(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_15[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_15[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_15[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_15[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_15[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_15[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_15[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_15[s];
+    }
 
   return;
 }
@@ -2580,16 +2355,16 @@ void SimplexQuadrature::dunavant_subrule_16(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_16[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_16[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_16[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_16[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_16[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_16[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_16[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_16[s];
+    }
 
   return;
 }
@@ -2676,16 +2451,16 @@ void SimplexQuadrature::dunavant_subrule_17(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_17[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_17[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_17[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_17[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_17[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_17[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_17[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_17[s];
+    }
 
   return;
 }
@@ -2776,16 +2551,16 @@ void SimplexQuadrature::dunavant_subrule_18(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_18[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_18[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_18[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_18[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_18[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_18[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_18[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_18[s];
+    }
 
   return;
 }
@@ -2876,16 +2651,16 @@ void SimplexQuadrature::dunavant_subrule_19(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_19[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_19[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_19[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_19[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_19[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_19[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_19[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_19[s];
+    }
 
   return;
 }
@@ -2980,16 +2755,16 @@ void SimplexQuadrature::dunavant_subrule_20(int suborder_num, std::vector<double
   };
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_xyz[0+s*3] = suborder_xy_rule_20[0+s*3];
-    suborder_xyz[1+s*3] = suborder_xy_rule_20[1+s*3];
-    suborder_xyz[2+s*3] = suborder_xy_rule_20[2+s*3];
-  }
+    {
+      suborder_xyz[0+s*3] = suborder_xy_rule_20[0+s*3];
+      suborder_xyz[1+s*3] = suborder_xy_rule_20[1+s*3];
+      suborder_xyz[2+s*3] = suborder_xy_rule_20[2+s*3];
+    }
 
   for (s = 0; s < suborder_num; s++)
-  {
-    suborder_w[s] = suborder_w_rule_20[s];
-  }
+    {
+      suborder_w[s] = suborder_w_rule_20[s];
+    }
 
   return;
 }
@@ -3056,16 +2831,16 @@ int SimplexQuadrature::i4_modp(int i, int j)
   int value;
 
   if (j == 0)
-  {
-    throw std::runtime_error("i4_modp must have non-zero j, which is here ");
-  }
+    {
+      throw std::runtime_error("i4_modp must have non-zero j, which is here ");
+    }
 
   value = i % j;
 
   if (value < 0)
-  {
-    value = value + abs(j);
-  }
+    {
+      value = value + abs(j);
+    }
 
   return value;
 }
@@ -3135,13 +2910,13 @@ int SimplexQuadrature::i4_wrap(int ival, int ilo, int ihi)
   wide = jhi + 1 - jlo;
 
   if (wide == 1)
-  {
-    value = jlo;
-  }
+    {
+      value = jlo;
+    }
   else
-  {
-    value = jlo + i4_modp(ival - jlo, wide);
-  }
+    {
+      value = jlo + i4_modp(ival - jlo, wide);
+    }
 
   return value;
 }
@@ -3200,17 +2975,17 @@ void SimplexQuadrature::legendre_compute_glr(std::size_t n,
   //  If N is odd, then zero is a root.
   //
   if (n % 2 == 1)
-  {
-    x[(n-1)/2] = p;
-    w[(n-1)/2] = pp;
-  }
+    {
+      x[(n-1)/2] = p;
+      w[(n-1)/2] = pp;
+    }
   //
   //  If N is even, we have to call a function to find the first root.
   //
   else
-  {
-    legendre_compute_glr2(p, n, x[n/2], w[n/2]);
-  }
+    {
+      legendre_compute_glr2(p, n, x[n/2], w[n/2]);
+    }
   //
   //  Get the complete set of roots and derivatives.
   //
@@ -3219,18 +2994,18 @@ void SimplexQuadrature::legendre_compute_glr(std::size_t n,
   //  Compute the W.
   //
   for (i = 0; i < n; i++)
-  {
-    w[i] = 2.0 /(1.0 - x[i]) /(1.0 + x[i]) / w[i] / w[i];
-  }
+    {
+      w[i] = 2.0 /(1.0 - x[i]) /(1.0 + x[i]) / w[i] / w[i];
+    }
   w_sum = 0.0;
   for (i = 0; i < n; i++)
-  {
-    w_sum = w_sum + w[i];
-  }
+    {
+      w_sum = w_sum + w[i];
+    }
   for (i = 0; i < n; i++)
-  {
-    w[i] = 2.0 * w[i] / w_sum;
-  }
+    {
+      w[i] = 2.0 * w[i] / w_sum;
+    }
   return;
 }
 //****************************************************************************80
@@ -3284,15 +3059,15 @@ void SimplexQuadrature::legendre_compute_glr0(std::size_t n, double& p, double& 
   ppm1 = 0.0;
 
   for (k = 0; k < n; k++)
-  {
-    dk = static_cast<double>(k);
-    p = - dk * pm2 /(dk + 1.0);
-    pp = (( 2.0 * dk + 1.0) * pm1 - dk * ppm2) /(dk + 1.0);
-    pm2 = pm1;
-    pm1 = p;
-    ppm2 = ppm1;
-    ppm1 = pp;
-  }
+    {
+      dk = static_cast<double>(k);
+      p = - dk * pm2 /(dk + 1.0);
+      pp = (( 2.0 * dk + 1.0) * pm1 - dk * ppm2) /(dk + 1.0);
+      pm2 = pm1;
+      pm1 = p;
+      ppm2 = ppm1;
+      ppm1 = pp;
+    }
   return;
 }
 //****************************************************************************80
@@ -3366,15 +3141,15 @@ void SimplexQuadrature::legendre_compute_glr1(std::size_t n_,
   int n = static_cast<int>(n_);
 
   if (n % 2 == 1)
-  {
-    n2 = (n - 1) / 2 - 1;
-    s = 1;
-  }
+    {
+      n2 = (n - 1) / 2 - 1;
+      s = 1;
+    }
   else
-  {
-    n2 = n / 2 - 1;
-    s = 0;
-  }
+    {
+      n2 = n / 2 - 1;
+      s = 0;
+    }
 
   // u = new double[m+2];
   // up = new double[m+1];
@@ -3384,45 +3159,45 @@ void SimplexQuadrature::legendre_compute_glr1(std::size_t n_,
   dn = static_cast<double>(n);
 
   for (j = n2 + 1; j < n - 1; j++)
-  {
-    xp = x[j];
-
-    h = rk2_leg(3.141592653589793238462/2.0, -3.141592653589793238462/2.0, xp, n) - xp;
-
-    u[0] = 0.0;
-    u[1] = 0.0;
-    u[2] = w[j];
-
-    up[0] = 0.0;
-    up[1] = u[2];
-
-    for (k = 0; k <= m - 2; k++)
     {
-      dk = static_cast<double>(k);
+      xp = x[j];
 
-      u[k+3] =
-	(
-	 2.0 * xp *(dk + 1.0) * u[k+2]
-	 +(dk *(dk + 1.0) - dn *(dn + 1.0)) * u[k+1] /(dk + 1.0)
-	 ) /(1.0 - xp) /(1.0 + xp) /(dk + 2.0);
+      h = rk2_leg(3.141592653589793238462/2.0, -3.141592653589793238462/2.0, xp, n) - xp;
 
-      up[k+2] = (dk + 2.0) * u[k+3];
+      u[0] = 0.0;
+      u[1] = 0.0;
+      u[2] = w[j];
+
+      up[0] = 0.0;
+      up[1] = u[2];
+
+      for (k = 0; k <= m - 2; k++)
+	{
+	  dk = static_cast<double>(k);
+
+	  u[k+3] =
+	    (
+	     2.0 * xp *(dk + 1.0) * u[k+2]
+	     +(dk *(dk + 1.0) - dn *(dn + 1.0)) * u[k+1] /(dk + 1.0)
+	     ) /(1.0 - xp) /(1.0 + xp) /(dk + 2.0);
+
+	  up[k+2] = (dk + 2.0) * u[k+3];
+	}
+
+      for (l = 0; l < 5; l++)
+	{
+	  h = h - ts_mult(u, h, m) / ts_mult(up, h, m-1);
+	}
+
+      x[j+1] = xp + h;
+      w[j+1] = ts_mult(up, h, m - 1);
     }
-
-    for (l = 0; l < 5; l++)
-    {
-      h = h - ts_mult(u, h, m) / ts_mult(up, h, m-1);
-    }
-
-    x[j+1] = xp + h;
-    w[j+1] = ts_mult(up, h, m - 1);
-  }
 
   for (k = 0; k <= n2 + s; k++)
-  {
-    x[k] = - x[n-1-k];
-    w[k] = w[n-1-k];
-  }
+    {
+      x[k] = - x[n-1-k];
+      w[k] = w[n-1-k];
+    }
   return;
 }
 //****************************************************************************80
@@ -3504,21 +3279,21 @@ void SimplexQuadrature::legendre_compute_glr2(double pn0, int n, double& x1, dou
   up[0] = 0.0;
 
   for (k = 0; k <= m - 2; k = k + 2)
-  {
-    dk = static_cast<double>(k);
+    {
+      dk = static_cast<double>(k);
 
-    u[k+2] = 0.0;
-    u[k+3] = (dk *(dk + 1.0) - dn *(dn + 1.0)) * u[k+1]
-      / (dk + 1.0) / (dk + 2.0);
+      u[k+2] = 0.0;
+      u[k+3] = (dk *(dk + 1.0) - dn *(dn + 1.0)) * u[k+1]
+	/ (dk + 1.0) / (dk + 2.0);
 
-    up[k+1] = 0.0;
-    up[k+2] = (dk + 2.0) * u[k+3];
-  }
+      up[k+1] = 0.0;
+      up[k+2] = (dk + 2.0) * u[k+3];
+    }
 
   for (l = 0; l < 5; l++)
-  {
-    x1 = x1 - ts_mult(u, x1, m) / ts_mult(up, x1, m-1);
-  }
+    {
+      x1 = x1 - ts_mult(u, x1, m) / ts_mult(up, x1, m-1);
+    }
   d1 = ts_mult(up, x1, m-1);
 
   return;
@@ -3571,17 +3346,17 @@ double SimplexQuadrature::rk2_leg(double t1, double t2, double x, int n)
   t = t1;
 
   for (j = 0; j < m; j++)
-  {
-    f = (1.0 - x) *(1.0 + x);
-    k1 = - h * f /(snn1 * sqrt(f) - 0.5 * x * sin(2.0 * t));
-    x = x + k1;
+    {
+      f = (1.0 - x) *(1.0 + x);
+      k1 = - h * f /(snn1 * sqrt(f) - 0.5 * x * sin(2.0 * t));
+      x = x + k1;
 
-    t = t + h;
+      t = t + h;
 
-    f = (1.0 - x) *(1.0 + x);
-    k2 = - h * f /(snn1 * sqrt(f) - 0.5 * x * sin(2.0 * t));
-    x = x + 0.5 *(k2 - k1);
-  }
+      f = (1.0 - x) *(1.0 + x);
+      k2 = - h * f /(snn1 * sqrt(f) - 0.5 * x * sin(2.0 * t));
+      x = x + 0.5 *(k2 - k1);
+    }
   return x;
 }
 //****************************************************************************80
@@ -3626,10 +3401,41 @@ double SimplexQuadrature::ts_mult(std::vector<double>& u, double h, int n)
   ts = 0.0;
   hk = 1.0;
   for (k = 1; k<= n; k++)
-  {
-    ts = ts + u[k] * hk;
-    hk = hk * h;
-  }
+    {
+      ts = ts + u[k] * hk;
+      hk = hk * h;
+    }
   return ts;
 }
 //-----------------------------------------------------------------------------
+double SimplexQuadrature::segment_length(const Point& a, const Point& b, std::size_t gdim) const
+{
+  const Point e = b - a;
+  if (gdim == 1) return std::abs(e.x());
+  if (gdim == 2) return std::sqrt(e.x()*e.x() + e.y()*e.y());
+  return e.norm();
+}
+
+double SimplexQuadrature::triangle_area(const Point& a, const Point& b, const Point& c, std::size_t gdim) const
+{
+  if (gdim == 2) return 0.5 * std::abs(orient2d(a, b, c));
+
+  const Point u = b - a;
+  const Point v = c - a;
+  const Point n = u.cross(v);
+  const double nn = n.norm();
+  return 0.5 * nn;
+}
+
+double SimplexQuadrature::tetra_volume(const Point& a, const Point& b, const Point& c, const Point& d) const
+{
+  return std::abs(orient3d(a, b, c, d)) / 6.0;
+}
+
+
+void SimplexQuadrature::write_point(double* out, std::size_t gdim, const Point& p) const
+  {
+    out[0] = p.x();
+    if (gdim > 1) out[1] = p.y();
+    if (gdim > 2) out[2] = p.z();
+  }
