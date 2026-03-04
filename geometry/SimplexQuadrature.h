@@ -72,9 +72,10 @@ public:
   static std::vector<std::size_t>
   compress(std::pair<std::vector<double>, std::vector<double>>& qr,
            std::size_t gdim,
-           std::size_t quadrature_order)
+           std::size_t quadrature_order,
+	   compression::CompressionMethod method=CompressionMethod::legacy)
   {
-    return compress_quadrature_rule(qr, gdim, quadrature_order);
+    return compression::compress(qr, gdim, quadrature_order, method);
   }
 
 private:
@@ -91,3 +92,4 @@ private:
 
 } // namespace simpex
 
++
