@@ -55,12 +55,24 @@ namespace simpex
     /// Compute determinant of 3 x 3 matrix defined by vectors, ab, dc, ec
     inline double determinant(const Point& ab, const Point& dc, const Point& ec)
     {
-      const double a = ab.x(), b = ab.y(), c = ab.z();
-      const double d = dc.x(), e = dc.y(), f = dc.z();
-      const double g = ec.x(), h = ec.y(), i = ec.z();
-      return a * (e * i - f * h)
-           + b * (f * g - d * i)
-           + c * (d * h - e * g);
+      // const double a = ab.x(), b = ab.y(), c = ab.z();
+      // const double d = dc.x(), e = dc.y(), f = dc.z();
+      // const double g = ec.x(), h = ec.y(), i = ec.z();
+      // return a * (e * i - f * h)
+      //      + b * (f * g - d * i)
+      //      + c * (d * h - e * g);
+
+      const double fast = ab.x() * (dc.y() * ec.z() - dc.z() * ec.y())
+	+ ab.y() * (dc.z() * ec.x() - dc.x() * ec.z())
+	+ ab.z() * (dc.x() * ec.y() - dc.y() * ec.x());
+
+      // If far from zero, return fast.
+      // Threshold can be tuned; this is a conservative relative-ish guard.
+      const double s = std::abs(fast);
+      if (s > 1e-18) return fast;
+
+      static const Point O(0,0,0);
+      return orient3d(ab, dc, ec, O);
     }
 
     /// Compute major (largest) axis of vector (2D)
@@ -94,11 +106,11 @@ namespace simpex
     {
       assert(axis <= 2);
       switch (axis)
-      {
-      case 0: return Point(p.y(), p.z());
-      case 1: return Point(p.x(), p.z());
-      case 2: return Point(p.x(), p.y());
-      }
+	{
+	case 0: return Point(p.y(), p.z());
+	case 1: return Point(p.x(), p.z());
+	case 2: return Point(p.x(), p.y());
+	}
       return p;
     }
 
