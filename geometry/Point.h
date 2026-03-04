@@ -116,7 +116,6 @@ namespace simpex
     SIMPEX_FORCEINLINE constexpr bool operator!=(const Point& p) const noexcept
     { return !(*this == p); }
 
-    // Hot geometry ops: inline them
     SIMPEX_FORCEINLINE constexpr double squared_distance(const Point& p) const noexcept
     {
       const double dx = _x[0] - p._x[0];
@@ -128,11 +127,11 @@ namespace simpex
     SIMPEX_FORCEINLINE double distance(const Point& p) const noexcept
     { return std::sqrt(squared_distance(p)); }
 
-    SIMPEX_FORCEINLINE double norm() const noexcept
-    { return std::sqrt(_x[0]*_x[0] + _x[1]*_x[1] + _x[2]*_x[2]); }
-
     SIMPEX_FORCEINLINE constexpr double squared_norm() const noexcept
     { return _x[0]*_x[0] + _x[1]*_x[1] + _x[2]*_x[2]; }
+
+    SIMPEX_FORCEINLINE double norm() const noexcept
+    { return std::sqrt(squared_norm()); }
 
     SIMPEX_FORCEINLINE constexpr Point cross(const Point& p) const noexcept
     {
