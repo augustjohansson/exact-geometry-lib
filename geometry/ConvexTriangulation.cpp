@@ -20,6 +20,12 @@
 #include <stdexcept>
 #include <tuple>
 #include <set>
+#include <vector>
+#include <array>
+#include <unordered_set>
+#include <algorithm>
+#include <cstdint>
+#include <cassert>
 #include "predicates.h"
 #include "GeometryPredicates.h"
 #include "GeometryTools.h"
@@ -369,218 +375,281 @@ ConvexTriangulation::_triangulate_graham_scan_2d(const std::vector<Point>& input
 {
   assert(GeometryPredicates::is_finite(input_points));
 
-  const std::size_t tdim = 2;
-  const std::size_t gdim = 2;
+  constexpr std::size_t tdim = 2;
+  constexpr std::size_t gdim = 2;
+
   std::vector<Point> points = unique_points(input_points, gdim, 3.0e-16);
+  const std::size_t n = points.size();
 
-  if (points.size() < 3)
-    return std::vector<std::vector<Point>>();
+  std::vector<std::vector<Point>> triangulation;
+  if (n < 3) return triangulation;
 
-  if (points.size() == 3)
+  if (n == 3)
   {
-    std::vector<std::vector<Point>> triangulation;
     if (!GeometryPredicates::is_degenerate(points, tdim, gdim))
       triangulation.push_back(points);
     return triangulation;
   }
 
-  // Use the bottommost point (lowest y, break ties by lowest x) as the pivot.
-  // This is the canonical Graham scan starting point.
+  // 1) Choose pivot: lowest y, break ties by lowest x
   std::size_t pivot = 0;
-  for (std::size_t m = 1; m < points.size(); ++m)
+  for (std::size_t i = 1; i < n; ++i)
   {
-    if (points[m].y() < points[pivot].y() ||
-        (points[m].y() == points[pivot].y() && points[m].x() < points[pivot].x()))
-      pivot = m;
+    if (points[i].y() < points[pivot].y() ||
+        (points[i].y() == points[pivot].y() && points[i].x() < points[pivot].x()))
+      pivot = i;
   }
   std::swap(points[0], points[pivot]);
+  const Point& p0 = points[0];
 
-  // Compute center for angle reference
-  Point pointscenter = points[0];
-  for (std::size_t m = 1; m < points.size(); ++m)
-    pointscenter += points[m];
-  pointscenter /= static_cast<double>(points.size());
+  // 2) Create index list for points[1..n-1]
+  std::vector<std::size_t> idx;
+  idx.reserve(n - 1);
+  for (std::size_t i = 1; i < n; ++i) idx.push_back(i);
 
-  const Point ref = points[0] - pointscenter;
-
-  // Calculate and store angles
-  std::vector<std::pair<double, std::size_t>> order;
-  for (std::size_t m = 1; m < points.size(); ++m)
+  auto dist2 = [&](std::size_t i) -> double
   {
-    const double A = orient2d(pointscenter, points[0], points[m]);
-    const Point s = points[m] - pointscenter;
-    double alpha = std::atan2(A, s.dot(ref));
-    if (alpha < 0)
-      alpha += 2.0*3.141592653589793238462;
-    order.emplace_back(alpha, m);
+    const double dx = points[i].x() - p0.x();
+    const double dy = points[i].y() - p0.y();
+    return dx*dx + dy*dy;
+  };
+
+  // 3) Polar sort by orientation around p0
+  std::sort(idx.begin(), idx.end(),
+            [&](std::size_t ia, std::size_t ib)
+  {
+    const Point& a = points[ia];
+    const Point& b = points[ib];
+
+    const double o = orient2d(p0, a, b);
+    if (o > 0.0) return true;   // a before b (CCW)
+    if (o < 0.0) return false;
+
+    // Collinear with pivot: sort by increasing distance (near first)
+    // This makes it easy to drop interior collinear points later.
+    return dist2(ia) < dist2(ib);
+  });
+
+  // 4) Remove points that are collinear on the same ray from pivot
+  // Keep only the farthest point on each ray to avoid degenerate fan triangles.
+  std::vector<std::size_t> order;
+  order.reserve(idx.size());
+  for (std::size_t t = 0; t < idx.size(); )
+  {
+    std::size_t best = idx[t]; // farthest at the end of a collinear block (since dist ascending)
+    std::size_t u = t + 1;
+    while (u < idx.size() && orient2d(p0, points[idx[t]], points[idx[u]]) == 0.0)
+    {
+      best = idx[u];
+      ++u;
+    }
+    order.push_back(best);
+    t = u;
   }
 
-  std::sort(order.begin(), order.end());
+  if (order.size() < 2)
+    return triangulation; // all points collinear w.r.t pivot => no area
 
-  std::vector<std::vector<Point>> triangulation;
+  // 5) Fan triangulation around p0
+  triangulation.reserve(order.size() - 1);
 
-  for (std::size_t m = 0; m < order.size()-1; ++m)
+  for (std::size_t i = 0; i + 1 < order.size(); ++i)
   {
-    const std::vector<Point> tri {{ points[0],
-	  points[order[m].second],
-	  points[order[m + 1].second] }};
+    const Point& a = points[order[i]];
+    const Point& b = points[order[i + 1]];
+
+    // If you trust the filtering above, this orient2d check is usually enough:
+    // if (orient2d(p0, a, b) == 0.0) continue;
+
+    std::vector<Point> tri;
+    tri.reserve(3);
+    tri.push_back(p0);
+    tri.push_back(a);
+    tri.push_back(b);
+
     if (!GeometryPredicates::is_degenerate(tri, tdim, gdim))
-      triangulation.push_back(tri);
+      triangulation.push_back(std::move(tri));
   }
 
   return triangulation;
 }
 //-----------------------------------------------------------------------------
+static inline int signum(double x) noexcept
+{
+  return (x > 0.0) - (x < 0.0);
+}
+
+// Pack an ordered triple (i<j<k) into a 64-bit key.
+// Works as long as indices fit in 21 bits each (2 million). For n~100 you're fine.
+static inline std::uint64_t pack3(std::uint32_t i, std::uint32_t j, std::uint32_t k) noexcept
+{
+  return (std::uint64_t(i) << 42) | (std::uint64_t(j) << 21) | std::uint64_t(k);
+}
+
 std::vector<std::vector<Point>>
 ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input_points)
 {
   assert(GeometryPredicates::is_finite(input_points));
 
-  const std::size_t tdim = 3;
-  const std::size_t gdim = 3;
+  constexpr std::size_t tdim = 3;
+  constexpr std::size_t gdim = 3;
+
   std::vector<Point> points = unique_points(input_points, gdim, 3.0e-16);
 
   std::vector<std::vector<Point>> triangulation;
+  triangulation.reserve(points.size()); // heuristic
 
-  if (points.size() < 4)
-  {
+  const std::size_t n = points.size();
+  if (n < 4)
     return triangulation;
-  }
-  else if (points.size() == 4)
+
+  if (n == 4)
   {
     if (!GeometryPredicates::is_degenerate(points, tdim, gdim))
       triangulation.push_back(points);
     return triangulation;
   }
-  else
+
+  // Polyhedron center
+  Point polyhedroncenter(0, 0, 0);
+  for (const Point& p : points) polyhedroncenter += p;
+  polyhedroncenter /= static_cast<double>(n);
+
+  // Much faster than std::set<tuple<...>>
+  std::unordered_set<std::uint64_t> checked;
+  checked.reserve(n * n * 4); // heuristic, avoids rehash churn
+
+  // Helper to push a tet candidate without repeated small allocations
+  auto push_tet = [&](const Point& a, const Point& b, const Point& c, const Point& d)
   {
-    Point polyhedroncenter(0,0,0);
-    for (const Point& p : points)
-      polyhedroncenter += p;
-    polyhedroncenter /= static_cast<double>(points.size());
+    std::vector<Point> cand;
+    cand.reserve(4);
+    cand.push_back(a);
+    cand.push_back(b);
+    cand.push_back(c);
+    cand.push_back(d);
 
-    std::set<std::tuple<std::size_t, std::size_t, std::size_t> > checked;
+#ifdef DOLFIN_ENABLE_GEOMETRY_DEBUGGING
+    if (cgal_tet_is_degenerate(cand))
+      throw std::runtime_error("tet is degenerate");
+#endif
 
-    for (std::size_t i = 0; i < points.size(); ++i)
+    if (!GeometryPredicates::is_degenerate(cand, tdim, gdim))
+      triangulation.push_back(std::move(cand));
+  };
+
+  for (std::size_t i = 0; i < n; ++i)
+  {
+    for (std::size_t j = i + 1; j < n; ++j)
     {
-      for (std::size_t j = i+1; j < points.size(); ++j)
+      for (std::size_t k = j + 1; k < n; ++k)
       {
-        for (std::size_t k = j+1; k < points.size(); ++k)
+        const std::uint64_t key = pack3((std::uint32_t)i, (std::uint32_t)j, (std::uint32_t)k);
+        if (!checked.emplace(key).second)
+          continue;
+
+        // Skip collinear triples
+        if ((points[j] - points[i]).cross(points[k] - points[i]).squared_norm() == 0.0)
+          continue;
+
+        bool on_convex_hull = true;
+        int ref_sign = 0;
+
+        // Collect coplanar indices only if we actually encounter any.
+        // Start with i,j,k in the list.
+        std::vector<std::size_t> coplanar;
+        coplanar.reserve(16);
+        coplanar.push_back(i);
+        coplanar.push_back(j);
+        coplanar.push_back(k);
+
+        for (std::size_t m = 0; m < n; ++m)
         {
-	  if (checked.emplace(std::make_tuple(i, j, k)).second)
-	  {
-            // Skip collinear triples using the exact cross-product (no division).
-            if ((points[j]-points[i]).cross(points[k]-points[i]).squared_norm() == 0.0)
-              continue;
+          if (m == i || m == j || m == k) continue;
 
-	    bool on_convex_hull = true;
-	    std::vector<std::size_t> coplanar = { i, j, k };
-	    double previous_orientation = 0.0;
-	    bool first = true;
+          const double o = orient3d(points[i], points[j], points[k], points[m]);
 
-	    for (std::size_t m = 0; m < points.size(); ++m)
-	    {
-	      if (m != i && m != j && m != k)
-	      {
-		const double orientation = orient3d(points[i],
-						    points[j],
-						    points[k],
-						    points[m]);
-		if (orientation == 0)
-		  coplanar.push_back(m);
-                else
-                {
-                  if (first)
-                  {
-                    previous_orientation = orientation;
-                    first = false;
-                  }
-                  else
-                  {
-                    if (previous_orientation * orientation < 0)
-                    {
-                      on_convex_hull = false;
-                    }
-                  }
-		}
-	      }
-	    }
+          if (o == 0.0)
+          {
+            coplanar.push_back(m);
+            continue;
+          }
 
-	    if (on_convex_hull)
-	    {
-	      if (coplanar.size() == 3)
-	      {
-		std::vector<Point> cand = { points[i],
-					    points[j],
-					    points[k],
-					    polyhedroncenter };
-#ifdef DOLFIN_ENABLE_GEOMETRY_DEBUGGING
-                if (cgal_tet_is_degenerate(cand))
-                  throw std::runtime_error("tet is degenerate");
-#endif
-		if (!GeometryPredicates::is_degenerate(cand, tdim, gdim))
-		  triangulation.push_back(cand);
-	      }
-	      else // At least four coplanar points
-	      {
-		std::vector<Point> coplanar_points;
-		for (std::size_t idx : coplanar)
-		  coplanar_points.push_back(points[idx]);
+          const int s = signum(o);
+          if (ref_sign == 0)
+          {
+            ref_sign = s;
+          }
+          else if (s != ref_sign)
+          {
+            on_convex_hull = false;
+            break; // stop calling orient3d once we know it fails
+          }
+        }
 
-		std::vector<std::pair<std::size_t, std::size_t>> coplanar_convex_hull =
-		  compute_convex_hull_planar(coplanar_points);
+        if (!on_convex_hull)
+          continue;
 
-		Point coplanar_center(0,0,0);
-		for (const Point& p : coplanar_points)
-		  coplanar_center += p;
-		coplanar_center /= static_cast<double>(coplanar_points.size());
+        if (coplanar.size() == 3)
+        {
+          // Simple face
+          push_tet(points[i], points[j], points[k], polyhedroncenter);
+          continue;
+        }
 
-		for (const std::pair<std::size_t, std::size_t>& edge : coplanar_convex_hull)
-		{
-		  const std::vector<Point> cand {{ polyhedroncenter,
-			coplanar_center,
-			coplanar_points[edge.first],
-			coplanar_points[edge.second] }};
-		  if (!GeometryPredicates::is_degenerate(cand, tdim, gdim))
-		  {
-		    triangulation.push_back(cand);
+        // ---- coplanar.size() > 3 ----
+        // Build coplanar points (local indexing)
+        std::vector<Point> coplanar_points;
+        coplanar_points.reserve(coplanar.size());
+        for (std::size_t idx : coplanar)
+          coplanar_points.push_back(points[idx]);
+
+        // Compute planar convex hull edges among coplanar points (local indices)
+        const auto coplanar_convex_hull = compute_convex_hull_planar(coplanar_points);
+
+        // Center of the coplanar set
+        Point coplanar_center(0, 0, 0);
+        for (const Point& p : coplanar_points) coplanar_center += p;
+        coplanar_center /= static_cast<double>(coplanar_points.size());
+
+        // For each hull edge, create a tet fan
+        for (const auto& edge : coplanar_convex_hull)
+        {
+          const Point& a = coplanar_points[edge.first];
+          const Point& b = coplanar_points[edge.second];
+
+          // order matches your original: {polyhedroncenter, coplanar_center, a, b}
+          push_tet(polyhedroncenter, coplanar_center, a, b);
 
 #ifdef DOLFIN_ENABLE_GEOMETRY_DEBUGGING
-		    if (cgal_tet_is_degenerate(triangulation.back()))
-		    {
-		      throw std::runtime_error("tet is degenerate");
-		    }
-
-		    if (cgal_triangulation_overlap(triangulation))
-		    {
-		      throw std::runtime_error("now triangulation overlaps");
-		    }
+          if (!triangulation.empty() && cgal_triangulation_overlap(triangulation))
+            throw std::runtime_error("now triangulation overlaps");
 #endif
-		  }
+        }
 
-		  std::sort(coplanar.begin(), coplanar.end());
-
-		  for (std::size_t coplanar_i = 0; coplanar_i + 2 < coplanar.size(); coplanar_i++)
-		  {
-		    for (std::size_t coplanar_j = coplanar_i+1; coplanar_j + 1 < coplanar.size(); coplanar_j++)
-		    {
-		      for (std::size_t coplanar_k = coplanar_j+1; coplanar_k < coplanar.size(); coplanar_k++)
-		      {
-			checked.emplace(std::make_tuple(coplanar[coplanar_i], coplanar[coplanar_j], coplanar[coplanar_k]));
-		      }
-                    }
-                  }
-                }
-	      } // end coplanar.size() > 3
-	    } // end on_convexhull
-	  }
-	}
+        // Only mark coplanar triples once
+        std::sort(coplanar.begin(), coplanar.end());
+        const std::size_t csz = coplanar.size();
+        for (std::size_t a = 0; a + 2 < csz; ++a)
+        {
+          const std::uint32_t ia = (std::uint32_t)coplanar[a];
+          for (std::size_t b = a + 1; b + 1 < csz; ++b)
+          {
+            const std::uint32_t ib = (std::uint32_t)coplanar[b];
+            for (std::size_t c = b + 1; c < csz; ++c)
+            {
+              const std::uint32_t ic = (std::uint32_t)coplanar[c];
+              checked.emplace(pack3(ia, ib, ic));
+            }
+          }
+        }
       }
     }
-
-    return triangulation;
   }
+
+  return triangulation;
 }
+
 //-----------------------------------------------------------------------------
 std::vector<std::vector<Point>>
 ConvexTriangulation::triangulate_graham_scan_3d(const std::vector<Point>& pm)
