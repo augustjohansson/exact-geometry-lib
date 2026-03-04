@@ -18,7 +18,7 @@ namespace simpex::tables {
   RuleRef triangle_rule_dunavant(std::size_t order);
 
   // Tetrahedron rules on the reference tetrahedron; sum(w) = 1/6.
-  // Supported orders: 1..8.
+  // Supported orders: 1..6.
   RuleRef tetra_rule_keast(std::size_t order);
 
 } // namespace simpex::tables

@@ -68,12 +68,14 @@ public:
   /// \param[in,out] qr              Quadrature rule to compress.
   /// \param[in]     gdim            Geometric dimension.
   /// \param[in]     quadrature_order Polynomial order integrated exactly.
+  /// \param[in]     method           Compression algorithm to use.
   /// \returns Indices of the retained points, or empty if no compression was made.
   static std::vector<std::size_t>
   compress(std::pair<std::vector<double>, std::vector<double>>& qr,
            std::size_t gdim,
            std::size_t quadrature_order,
-	   compression::CompressionMethod method=CompressionMethod::legacy)
+           compression::CompressionMethod method
+               = compression::CompressionMethod::legacy)
   {
     return compression::compress(qr, gdim, quadrature_order, method);
   }
@@ -92,4 +94,3 @@ private:
 
 } // namespace simpex
 
-+

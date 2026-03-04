@@ -232,8 +232,8 @@ void SimplexQuadrature::setup_qr_reference_triangle(std::size_t order)
 //-----------------------------------------------------------------------------
 void SimplexQuadrature::setup_qr_reference_tetrahedron(std::size_t order)
 {
-  if (order > 8)
-    throw std::runtime_error("Tetrahedron quadrature supported up to order 8.");
+  if (order > 6)
+    throw std::runtime_error("Tetrahedron quadrature supported up to order 6.");
   const auto rr = tables::tetra_rule_keast(order);
   const std::size_t n = rr.w.size();
   _p.assign(n, std::vector<double>(3));

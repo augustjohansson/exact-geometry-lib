@@ -55,15 +55,20 @@ The library uses the following hard-coded tolerance values.  Users integrating
 simpex into applications with extreme coordinate magnitudes should be aware of
 these thresholds.
 
-| Location                                         | Value   | Purpose                                                                                      |
-|--------------------------------------------------|---------|----------------------------------------------------------------------------------------------|
-| `geometry/ConvexTriangulation.cpp` (two places)  | `1e-14` | Orientation test threshold for detecting coplanar face normals and checking triangulation volume accuracy. |
-| `geometry/CGALExactArithmetic.h`                 | `1e-15` | Coincident-point guard when converting simplex vertices to CGAL exact points.                |
+| Location | Value | Purpose |
+|---|---|---|
+| `geometry/ConvexTriangulation.cpp` (three places) | `3.0e-16` | Deduplication threshold: two points are considered distinct if they differ by more than this value in any coordinate dimension (`unique_points`). |
+| `geometry/ConvexTriangulation.cpp` | `1e-14` | Orientation test threshold: a face normal is accepted only if `|orient3d| > 1e-14`. |
+| `geometry/ConvexTriangulation.cpp` | `1e-14` | Volume verification: the reconstructed triangulation volume must match the reference volume to within this tolerance. |
+| `geometry/GeometryPredicates.cpp` | `3.0e-16` | Collinearity test: two unit vectors are considered non-collinear if `-(|u·v| - 1) > 3.0e-16`. |
+| `geometry/IntersectionConstruction.cpp` | `3.0e-16` | Degenerate segment test: a segment endpoint is considered to lie on the splitting plane if `|orient| < 3.0e-16`. |
+| `geometry/Point.h` | `3.0e-16` | Assertion: the axis vector passed to `Point::rotate` must be a unit vector to within `3.0e-16`. |
+| `geometry/CGALExactArithmetic.h` | `1e-15` | Coincident-point guard: two simplex vertices are treated as identical when converting to CGAL exact arithmetic if their distance is less than `1e-15`. |
 
-All other predicates (orient2d, orient3d, in-circle, in-sphere) use
-Shewchuk's adaptive exact arithmetic, which has no fixed tolerance:
-results are computed to full floating-point precision with an adaptively
-chosen precision for boundary cases.
+All collision and orientation predicates (orient2d, orient3d, in-circle,
+in-sphere) use Shewchuk's adaptive exact arithmetic, which carries no fixed
+tolerance: results are computed to full floating-point precision with an
+adaptively chosen working precision for near-degenerate cases.
 
 ## Running
 
