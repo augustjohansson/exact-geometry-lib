@@ -8,6 +8,7 @@ set(GEOMETRY_SOURCES
   GeometryPredicates.cpp
   IntersectionConstruction.cpp
   SimplexQuadrature.cpp
+  SimplexQuadratureTables.cpp
 )
 
 set(GEOMETRY_HEADERS
