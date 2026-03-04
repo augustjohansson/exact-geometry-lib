@@ -296,6 +296,40 @@ namespace simpex
                                                          const Point& b,
                                                          double rsta,
                                                          double rstb);
+
+    // Helper: 2D segment-point test with pre-computed orient2d value.
+    // op01_pt = orient2d(p0, p1, point)
+    static bool _collides_segment_point_2d_with_hint(const Point& p0,
+                                                      const Point& p1,
+                                                      const Point& point,
+                                                      double op01_pt);
+
+    // Helper: 2D segment-segment collision with all four orient2d values
+    // pre-computed.
+    // pq0 = orient2d(p0,p1,q0)  pq1 = orient2d(p0,p1,q1)
+    // qp0 = orient2d(q0,q1,p0)  qp1 = orient2d(q0,q1,p1)
+    static bool _collides_segment_segment_2d_with_hint(const Point& p0,
+                                                        const Point& p1,
+                                                        const Point& q0,
+                                                        const Point& q1,
+                                                        double pq0,
+                                                        double pq1,
+                                                        double qp0,
+                                                        double qp1);
+
+    // Helper: 2D triangle-point collision with pre-computed edge orientations.
+    // ref   = orient2d(p0,p1,p2)
+    // o01   = orient2d(p0,p1,point)
+    // o12   = orient2d(p1,p2,point)
+    // o20   = orient2d(p2,p0,point)
+    static bool _collides_triangle_point_2d_with_hint(const Point& p0,
+                                                       const Point& p1,
+                                                       const Point& p2,
+                                                       const Point& point,
+                                                       double ref,
+                                                       double o01,
+                                                       double o12,
+                                                       double o20);
   };
 
 }

@@ -5,7 +5,7 @@
 //
 // Available only when compiled with -DGEOMETRY_WITH_CGAL.
 // Uses CGAL::Exact_predicates_inexact_constructions_kernel (EPICK) throughout.
-// All collision tests use CGAL::do_intersect — no general Polyhedron routines.
+// All collision tests use CGAL::do_intersect -- no general Polyhedron routines.
 
 #ifndef SIMPEX_CGAL_PREDICATES_H
 #define SIMPEX_CGAL_PREDICATES_H
@@ -74,7 +74,7 @@ inline double cgal_orient3d(const Point& a, const Point& b,
 }
 
 // ---------------------------------------------------------------------------
-// Collision predicates — all use CGAL::do_intersect (EPICK)
+// Collision predicates -- all use CGAL::do_intersect (EPICK)
 // ---------------------------------------------------------------------------
 
 /// 2D segment-point collision.

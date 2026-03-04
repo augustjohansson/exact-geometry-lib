@@ -121,11 +121,20 @@ namespace simpex
 #include <CGAL/Triangulation_2.h>
 #include <CGAL/Nef_polyhedron_3.h>
 
-// CGAL 5.x uses boost::variant for intersection results; provide a uniform
-// get_if<T> wrapper that delegates to boost::get<T>.
+// CGAL 6.x uses std::optional/std::variant for intersection results.
+// CGAL 5.x uses boost::optional/boost::variant.
+// Provide a uniform cgal_get_if<T> that works for both versions.
+#if CGAL_VERSION_NR >= 1060100000
+// CGAL >= 6.1 uses std::variant
+#include <variant>
+template<typename T, typename V>
+static const T* cgal_get_if(const V* v) { return std::get_if<T>(v); }
+#else
+// CGAL < 6.1 uses boost::variant
 #include <boost/variant.hpp>
 template<typename T, typename V>
 static const T* cgal_get_if(const V* v) { return boost::get<T>(v); }
+#endif
 
 namespace
 {

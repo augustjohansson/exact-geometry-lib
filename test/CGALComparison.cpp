@@ -5,10 +5,11 @@
 // geometric dimensions (gdim 2,3) and topological dimensions (tdim 0..3).
 //
 // For every function the test suite includes:
-//   1. Random cases — large batches of deterministic random inputs
-//   2. Controlled corner cases — collinear/coplanar alignments
-//   3. Tiny perturbations — show that exact arithmetic detects inside/outside
-//      even when entities are within 1e-10 of the boundary
+//   1. Random cases -- large batches of deterministic random inputs
+//   2. Controlled corner cases -- collinear/coplanar alignments
+//   3. Tiny perturbations (1e-20) -- exact arithmetic resolves inside/outside
+//      even at perturbations far below machine precision (1e-16).
+//      Two points are equal only if they are truly equal (==).
 //   4. Every result is verified against CGAL::do_intersect (EPICK)
 //
 // All random generators use seed 42 for reproducibility.
@@ -42,7 +43,7 @@ static std::array<Point,2> rseg2()
 {
   while (true) {
     Point a = rp2(), b = rp2();
-    if ((b-a).norm() > 1e-6) return {a,b};
+    if ((b-a).norm() != 0.0) return {a,b};
   }
 }
 // Non-degenerate random segment in 3D
@@ -50,7 +51,7 @@ static std::array<Point,2> rseg3()
 {
   while (true) {
     Point a = rp3(), b = rp3();
-    if ((b-a).norm() > 1e-6) return {a,b};
+    if ((b-a).norm() != 0.0) return {a,b};
   }
 }
 // Non-degenerate random triangle in 2D
@@ -58,7 +59,7 @@ static std::array<Point,3> rtri2()
 {
   while (true) {
     Point p0 = rp2(), p1 = rp2(), p2 = rp2();
-    if (std::abs(orient2d(p0,p1,p2)) > 1e-6)
+    if (orient2d(p0,p1,p2) != 0.0)
       return {p0,p1,p2};
   }
 }
@@ -67,7 +68,7 @@ static std::array<Point,3> rtri3()
 {
   while (true) {
     Point p0 = rp3(), p1 = rp3(), p2 = rp3();
-    if ((p1-p0).cross(p2-p0).norm() > 1e-6)
+    if ((p1-p0).cross(p2-p0).norm() != 0.0)
       return {p0,p1,p2};
   }
 }
@@ -76,7 +77,7 @@ static std::array<Point,4> rtet()
 {
   while (true) {
     Point p0 = rp3(), p1 = rp3(), p2 = rp3(), p3 = rp3();
-    if (std::abs(orient3d(p0,p1,p2,p3)) > 1e-6)
+    if (orient3d(p0,p1,p2,p3) != 0.0)
       return {p0,p1,p2,p3};
   }
 }
@@ -98,12 +99,12 @@ static bool chk(bool simpex_val, bool cgal_val, const char* label)
 TEST_CASE("CGAL: segment-point 1D", "[cgal]")
 {
   // 1D has no CGAL equivalent; verify the simpex implementation with exact checks.
-  // The 1D predicate uses simple <= comparisons, so exact boundary values are fine.
-  CHECK(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 0.5));    // interior
+  // Use 1e-20 perturbations near 0.0 where they are representable as distinct doubles.
+  CHECK(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 0.5));    // clearly interior
   CHECK(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 0.0));    // left endpoint
   CHECK(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 1.0));    // right endpoint
-  CHECK_FALSE(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, -1e-6)); // just left
-  CHECK_FALSE(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 1.0 + 1e-6)); // just right
+  CHECK(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, 1e-20));  // 1e-20 inside left boundary
+  CHECK_FALSE(CollisionPredicates::collides_segment_point_1d(0.0, 1.0, -1e-20)); // 1e-20 outside left boundary
 }
 
 // ---------------------------------------------------------------------------
@@ -144,15 +145,16 @@ TEST_CASE("CGAL: segment-point 2D", "[cgal]")
                     cgal_collides_segment_point_2d(p0,p1,q)));
   }
 
-  SECTION("perturbation: just inside endpoint") {
-    // Point at 1e-10 inside the segment from the end
+  SECTION("perturbation: lateral offset distinguishes on-segment from off") {
+    // A tiny y-offset of 1e-20 makes orient2d non-zero -> point is off the segment.
+    // orient2d((0,0),(1,0),(0.5,1e-20)) = 1e-20 != 0, so the point is NOT on the line.
     Point p0(0,0,0), p1(1,0,0);
-    Point q_in(1.0 - 1e-10, 0, 0);
-    Point q_out(1.0 + 1e-10, 0, 0);
-    CHECK(CHK(CollisionPredicates::collides_segment_point_2d(p0,p1,q_in),
-              cgal_collides_segment_point_2d(p0,p1,q_in)));
-    CHECK_FALSE(CHK(CollisionPredicates::collides_segment_point_2d(p0,p1,q_out),
-                    cgal_collides_segment_point_2d(p0,p1,q_out)));
+    Point q_on (0.5, 0,    0);   // exactly on segment
+    Point q_off(0.5, 1e-20, 0);  // 1e-20 off the x-axis -> off segment
+    CHECK(CHK(CollisionPredicates::collides_segment_point_2d(p0,p1,q_on),
+              cgal_collides_segment_point_2d(p0,p1,q_on)));
+    CHECK_FALSE(CHK(CollisionPredicates::collides_segment_point_2d(p0,p1,q_off),
+                    cgal_collides_segment_point_2d(p0,p1,q_off)));
   }
 }
 
@@ -235,11 +237,13 @@ TEST_CASE("CGAL: segment-segment 2D", "[cgal]")
   }
 
   SECTION("perturbation: segments just touching vs. just apart") {
-    Point p0(0,0,0), p1(1,0,0);
-    Point q_touch(1,0,0), q_end(2,0,0);
+    // Use endpoints near 1e-15 so that a 1e-20 gap is representable.
+    // ULP of 1e-15 is ~2.2e-31, so 1e-15 + 1e-20 is a distinct float from 1e-15.
+    Point p0(0,0,0), p1(1e-15,0,0);
+    Point q_touch(1e-15,0,0), q_end(2e-15,0,0);
     CHECK(CHK(CollisionPredicates::collides_segment_segment_2d(p0,p1,q_touch,q_end),
               cgal_collides_segment_segment_2d(p0,p1,q_touch,q_end)));
-    Point q_near(1+1e-10,0,0), q_far(2,0,0);
+    Point q_near(1e-15+1e-20,0,0), q_far(2e-15,0,0);
     CHECK_FALSE(CHK(CollisionPredicates::collides_segment_segment_2d(p0,p1,q_near,q_far),
                     cgal_collides_segment_segment_2d(p0,p1,q_near,q_far)));
   }
@@ -368,7 +372,7 @@ TEST_CASE("CGAL: triangle-point 3D", "[cgal]")
   SECTION("perturbation: lift off plane by tiny epsilon") {
     Point p0(0,0,0),p1(1,0,0),p2(0,1,0);
     Point q_on (0.25,0.25, 0.0);
-    Point q_off(0.25,0.25, 1e-10);
+    Point q_off(0.25,0.25, 1e-20);
     CHECK(CHK(CollisionPredicates::collides_triangle_point_3d(p0,p1,p2,q_on),
               cgal_collides_triangle_point_3d(p0,p1,p2,q_on)));
     CHECK_FALSE(CHK(CollisionPredicates::collides_triangle_point_3d(p0,p1,p2,q_off),
@@ -453,14 +457,21 @@ TEST_CASE("CGAL: triangle-segment 3D", "[cgal]")
               cgal_collides_triangle_segment_3d(p0,p1,p2,q0,q1)));
   }
 
-  SECTION("perturbation: segment just misses triangle") {
+  SECTION("perturbation: segment near vertex just inside vs. outside triangle") {
+    // Triangle in z=0 plane. Test a vertical segment piercing near the origin.
+    // (1e-20, 1e-20, .) is inside since x>0, y>0, x+y = 2e-20 < 1.
+    // (-1e-20, 1e-20, .) is outside since orient2d((0,0),(1,0),(-1e-20,1e-20)) < 0.
     Point p0(0,0,0),p1(1,0,0),p2(0,1,0);
-    // Segment tip at (0.5+eps, 0.5+eps, 0): x+y = 1.0 + 2e-9 > 1, so outside the triangle
-    Point q0(0.5+1e-9, 0.5+1e-9, -1), q1(0.5+1e-9, 0.5+1e-9, 1);
-    bool s = CollisionPredicates::collides_triangle_segment_3d(p0,p1,p2,q0,q1);
-    bool c = cgal_collides_triangle_segment_3d(p0,p1,p2,q0,q1);
-    CHECK_FALSE(s);   // sum > 1 → outside triangle
-    CHECK(s == c);
+    Point qi0(1e-20, 1e-20, -1), qi1(1e-20, 1e-20, 1);    // pierces inside
+    Point qo0(-1e-20, 1e-20, -1), qo1(-1e-20, 1e-20, 1);  // misses (outside p0-p1 edge)
+    bool si = CollisionPredicates::collides_triangle_segment_3d(p0,p1,p2,qi0,qi1);
+    bool ci = cgal_collides_triangle_segment_3d(p0,p1,p2,qi0,qi1);
+    CHECK(si);
+    CHECK(si == ci);
+    bool so = CollisionPredicates::collides_triangle_segment_3d(p0,p1,p2,qo0,qo1);
+    bool co = cgal_collides_triangle_segment_3d(p0,p1,p2,qo0,qo1);
+    CHECK_FALSE(so);
+    CHECK(so == co);
   }
 }
 
@@ -508,11 +519,11 @@ TEST_CASE("CGAL: triangle-triangle 2D", "[cgal]")
                     cgal_collides_triangle_triangle_2d(p0,p1,p2,q0,q1,q2)));
   }
 
-  SECTION("perturbation: near-touching vs gap") {
-    Point p0(0,0,0),p1(1,0,0),p2(0,1,0);
-    // Second triangle touching at x=1+eps
-    double eps = 1e-9;
-    Point q0(1+eps,0,0),q1(2,0,0),q2(1+eps,1,0);
+  SECTION("perturbation: tiny gap between triangles") {
+    // Use small-valued geometry so 1e-20 offset is representable as a distinct double.
+    // Triangle p near origin, triangle q starts at 1e-15 + 1e-20 away.
+    Point p0(0,0,0),p1(1e-15,0,0),p2(0,1e-15,0);
+    Point q0(1e-15+1e-20,0,0),q1(2e-15,0,0),q2(1e-15+1e-20,1e-15,0);
     CHECK_FALSE(CHK(CollisionPredicates::collides_triangle_triangle_2d(p0,p1,p2,q0,q1,q2),
                     cgal_collides_triangle_triangle_2d(p0,p1,p2,q0,q1,q2)));
   }
@@ -599,12 +610,14 @@ TEST_CASE("CGAL: tetrahedron-point 3D", "[cgal]")
                     cgal_collides_tetrahedron_point_3d(p0,p1,p2,p3,out)));
   }
 
-  SECTION("perturbation: just inside/outside slanted face") {
-    // Unit tet face: x+y+z=1. Test at (0.33+eps, 0.33, 0.33)
+  SECTION("perturbation: just inside/outside face at x=0") {
+    // The unit tet has a face at x=0 (vertices p0,p2,p3).
+    // q_in  = (1e-20, 0.1, 0.1): x > 0, inside the tet.
+    // q_out = (-1e-20, 0.1, 0.1): x < 0, outside.
+    // orient3d involving this face changes sign between these two points.
     Point p0(0,0,0),p1(1,0,0),p2(0,1,0),p3(0,0,1);
-    double eps = 1e-9;
-    Point q_in (0.33, 0.33, 0.34 - eps);  // sum < 1
-    Point q_out(0.33, 0.33, 0.34 + eps);  // sum > 1
+    Point q_in (1e-20, 0.1, 0.1);   // tiny positive x -> inside
+    Point q_out(-1e-20, 0.1, 0.1);  // tiny negative x -> outside
     CHECK(CHK(CollisionPredicates::collides_tetrahedron_point_3d(p0,p1,p2,p3,q_in),
               cgal_collides_tetrahedron_point_3d(p0,p1,p2,p3,q_in)));
     CHECK_FALSE(CHK(CollisionPredicates::collides_tetrahedron_point_3d(p0,p1,p2,p3,q_out),
@@ -659,7 +672,7 @@ TEST_CASE("CGAL: tetrahedron-segment 3D", "[cgal]")
 
   SECTION("perturbation: segment endpoint just outside face") {
     Point p0(0,0,0),p1(1,0,0),p2(0,1,0),p3(0,0,1);
-    double eps = 1e-9;
+    double eps = 1e-20;
     // Endpoint just inside the slanted face (x+y+z < 1)
     Point q0_in(0.33, 0.33, 0.33), q1(2, 2, 2);
     Point q0_out(0.34+eps, 0.33, 0.33), q1b(2,2,2); // outside
@@ -774,7 +787,7 @@ TEST_CASE("CGAL: tetrahedron-tetrahedron 3D", "[cgal]")
 
   SECTION("perturbation: second tet just outside first") {
     Point p0(0,0,0),p1(1,0,0),p2(0,1,0),p3(0,0,1);
-    double eps = 1e-9;
+    double eps = 1e-20;
     // Shift second tet so its vertex q0 is just outside the first
     Point q0(1+eps,0,0),q1(2,0,0),q2(1,1,0),q3(1,0,1);
     bool s = CollisionPredicates::collides_tetrahedron_tetrahedron_3d(p0,p1,p2,p3,q0,q1,q2,q3);
