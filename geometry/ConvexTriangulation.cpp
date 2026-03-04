@@ -16,16 +16,14 @@
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
+#include <array>
 #include <cassert>
+#include <cstdint>
+#include <set>
 #include <stdexcept>
 #include <tuple>
-#include <set>
-#include <vector>
-#include <array>
 #include <unordered_set>
-#include <algorithm>
-#include <cstdint>
-#include <cassert>
+#include <vector>
 #include "predicates.h"
 #include "GeometryPredicates.h"
 #include "GeometryTools.h"

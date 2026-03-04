@@ -16,12 +16,24 @@
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
 
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
+#include "GeometryTools.h"
 #include "SimplexQuadrature.h"
 #include "SimplexQuadratureTables.h"
 #include "predicates.h"
 
 using namespace simpex;
+
+// ---------------------------------------------------------------------------
+// File-scope helpers
+// ---------------------------------------------------------------------------
+static void write_point(double* out, std::size_t gdim, const Point& p)
+{
+  out[0] = p.x();
+  if (gdim > 1) out[1] = p.y();
+  if (gdim > 2) out[2] = p.z();
+}
 
 //-----------------------------------------------------------------------------
 SimplexQuadrature::SimplexQuadrature(std::size_t tdim, std::size_t order)
@@ -85,7 +97,7 @@ SimplexQuadrature::compute_quadrature_rule_interval(const std::vector<Point>& X,
   const Point& x0 = X[0];
   const Point  e  = X[1] - X[0];
 
-  const double L = segment_length(X[0], X[1], gdim);   // physical measure
+  const double L = GeometryTools::segment_length(X[0], X[1], gdim);
   const double ref = 1.0;                              // |[0,1]|
   const double scale = L / ref;
 
@@ -115,7 +127,7 @@ SimplexQuadrature::compute_quadrature_rule_triangle(const std::vector<Point>& X,
   const Point  e1 = X[1] - X[0];
   const Point  e2 = X[2] - X[0];
 
-  const double A = triangle_area(X[0], X[1], X[2], gdim);
+  const double A = GeometryTools::triangle_area(X[0], X[1], X[2], gdim);
   const double ref = 0.5; // reference triangle area
   const double scale = A / ref;
 
@@ -148,7 +160,7 @@ SimplexQuadrature::compute_quadrature_rule_tetrahedron(const std::vector<Point>&
   const Point  e2 = X[2] - X[0];
   const Point  e3 = X[3] - X[0];
 
-  const double V = tetra_volume(X[0], X[1], X[2], X[3]);
+  const double V = GeometryTools::tetra_volume(X[0], X[1], X[2], X[3]);
   const double ref = 1.0 / 6.0;
   const double scale = V / ref;
 
@@ -207,7 +219,7 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
 
   // Compute weights in the new basis
   Eigen::Map<const Eigen::VectorXd> w_base(qr_input.second.data(),
-					   qr_input.second.size());
+					   static_cast<Eigen::Index>(qr_input.second.size()));
   const Eigen::VectorXd nu = Q*w_base;
 
   // Compute new weights
@@ -219,7 +231,7 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
   for (Eigen::Index i = 0; i < w_new.size(); ++i)
     {
       if (std::abs(w_new[i]) > 0.0)
-	indices.push_back(i);
+	indices.push_back(static_cast<std::size_t>(i));
     }
 
   // Resize qr and overwrite the points and weights
@@ -234,7 +246,7 @@ SimplexQuadrature::compress(std::pair<std::vector<double>, std::vector<double>>&
 	qr.first[gdim*i + d] = qr_input.first[gdim*indices[i] + d];
 
       // Save weights
-      qr.second[i] = w_new[indices[i]];
+      qr.second[i] = w_new[static_cast<Eigen::Index>(indices[i])];
     }
 
   // Return indices. These are useful for mapping additional data, for
@@ -287,13 +299,13 @@ Eigen::MatrixXd SimplexQuadrature::Chebyshev_Vandermonde_matrix
 {
   // Create the Chebyshev basis matrix for each dimension separately
   std::vector<std::vector<Eigen::VectorXd>> T(gdim);
-  Eigen::VectorXd x(qr.second.size());
+  Eigen::VectorXd x(static_cast<Eigen::Index>(qr.second.size()));
 
   for (std::size_t d = 0; d < gdim; ++d)
     {
       // Extract coordinates in one dimension
       for (std::size_t i = 0; i < qr.second.size(); ++i)
-	x(i) = qr.first[i*gdim + d];
+	x(static_cast<Eigen::Index>(i)) = qr.first[i*gdim + d];
 
       // Map points to [-1, 1]
       const double xmin = x.minCoeff();
@@ -311,24 +323,22 @@ Eigen::MatrixXd SimplexQuadrature::Chebyshev_Vandermonde_matrix
 
   // Setup the Vandermonde type matrix
   const std::size_t n_cols = P.size();
-  Eigen::MatrixXd V(Eigen::MatrixXd::Ones(qr.second.size(), n_cols));
+  Eigen::MatrixXd V(Eigen::MatrixXd::Ones(static_cast<Eigen::Index>(qr.second.size()),
+                                          static_cast<Eigen::Index>(n_cols)));
 
   // The first column is always [1, 1, ..., 1], hence we can start from 1
   for (std::size_t i = 1; i < n_cols; ++i)
     {
       // Pick out the correct order of polynomial from the P
       // matrix. Start with dimension 0.
-      const std::size_t d = 0;
-      const std::size_t grlex_order = P[i][d];
-      Eigen::VectorXd V_col = T[d][grlex_order];
+      Eigen::VectorXd V_col = T[0][P[i][0]];
 
       // Do a .* style multiplication for each other dimension
-      for (std::size_t d = 1; d < gdim; ++d)
+      for (std::size_t d2 = 1; d2 < gdim; ++d2)
 	{
-	  const std::size_t grlex_order = P[i][d];
-	  V_col = V_col.cwiseProduct(T[d][grlex_order]);
+	  V_col = V_col.cwiseProduct(T[d2][P[i][d2]]);
 	}
-      V.col(i) = V_col;
+      V.col(static_cast<Eigen::Index>(i)) = V_col;
     }
 
   return V;
@@ -424,36 +434,3 @@ SimplexQuadrature::choose(std::size_t n,
   return (n * choose(n - 1, k - 1)) / k;
 }
 //-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-double SimplexQuadrature::segment_length(const Point& a, const Point& b, std::size_t gdim) const
-{
-  const Point e = b - a;
-  if (gdim == 1) return std::abs(e.x());
-  if (gdim == 2) return std::sqrt(e.x()*e.x() + e.y()*e.y());
-  return e.norm();
-}
-
-double SimplexQuadrature::triangle_area(const Point& a, const Point& b, const Point& c, std::size_t gdim) const
-{
-  if (gdim == 2) return 0.5 * std::abs(orient2d(a, b, c));
-
-  const Point u = b - a;
-  const Point v = c - a;
-  const Point n = u.cross(v);
-  const double nn = n.norm();
-  return 0.5 * nn;
-}
-
-double SimplexQuadrature::tetra_volume(const Point& a, const Point& b, const Point& c, const Point& d) const
-{
-  return std::abs(orient3d(a, b, c, d)) / 6.0;
-}
-
-
-void SimplexQuadrature::write_point(double* out, std::size_t gdim, const Point& p) const
-  {
-    out[0] = p.x();
-    if (gdim > 1) out[1] = p.y();
-    if (gdim > 2) out[2] = p.z();
-  }

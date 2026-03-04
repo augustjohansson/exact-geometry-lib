@@ -1,9 +1,9 @@
 #include "SimplexQuadratureTables.h"
-#include <vector>
-#include <unordered_map>
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
+#include <unordered_map>
+#include <vector>
 
 // Forward declarations for static helper functions
 static void dunavant_rule(std::size_t, std::vector<std::vector<double>>&, std::vector<double>&);
@@ -39,6 +39,14 @@ static void legendre_compute_glr1(std::size_t, std::vector<double>&, std::vector
 static void legendre_compute_glr2(double, int, double&, double&);
 static double ts_mult(std::vector<double>&, double, int);
 static double rk2_leg(double, double, double, int);
+
+// Suppress conversion warnings in third-party Burkardt quadrature code
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 
 // Static-scope quadrature generation functions (moved from SimplexQuadrature.cpp)
 static void dunavant_rule(std::size_t rule,
@@ -113,7 +121,7 @@ static void dunavant_rule(std::size_t rule,
 	}
       else if (suborder[s] == 3)
 	{
-	  for (std::size_t k = 0; k < 3; k++)
+	  for (int k = 0; k < 3; k++)
 	    {
 	      p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
 	      p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
@@ -123,7 +131,7 @@ static void dunavant_rule(std::size_t rule,
 	}
       else if (suborder[s] == 6)
 	{
-	  for (std::size_t k = 0; k < 3; k++)
+	  for (int k = 0; k < 3; k++)
 	    {
 	      p[o][0] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
 	      p[o][1] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
@@ -131,7 +139,7 @@ static void dunavant_rule(std::size_t rule,
 	      o = o + 1;
 	    }
 
-	  for (std::size_t k = 0; k < 3; k++)
+	  for (int k = 0; k < 3; k++)
 	    {
 	      p[o][0] = suborder_xyz[i4_wrap(k+1,0,2) + s*3];
 	      p[o][1] = suborder_xyz[i4_wrap(k,  0,2) + s*3];
@@ -3025,13 +3033,17 @@ static double ts_mult(std::vector<double>& u, double h, int n)
   return ts;
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 // ---------------------------------------------------------------------------
 // simpex::tables implementations
 // ---------------------------------------------------------------------------
 
 namespace simpex::tables {
 
-static RuleRef legendre_cached(std::size_t order)
+RuleRef interval_rule_legendre(std::size_t order)
 {
   using Entry = std::pair<std::vector<double>, std::vector<double>>;
   static std::unordered_map<std::size_t, Entry> cache;
@@ -3039,10 +3051,10 @@ static RuleRef legendre_cached(std::size_t order)
   auto& e = cache[order];
   if (e.second.empty())
   {
-    std::size_t n = order;
+    const std::size_t n = order;
     std::vector<double> x, w;
     legendre_compute_glr(n, x, w);
-    // convert from [-1,1] to [0,1]
+    // convert from [-1,1] to [0,1]; halve weights to get sum=1
     e.first.resize(3 * n, 0.0);
     e.second.resize(n);
     for (std::size_t i = 0; i < n; ++i)
@@ -3054,7 +3066,7 @@ static RuleRef legendre_cached(std::size_t order)
   return { e.second.size(), e.first.data(), e.second.data() };
 }
 
-static RuleRef dunavant_cached(std::size_t order)
+RuleRef triangle_rule_dunavant(std::size_t order)
 {
   using Entry = std::pair<std::vector<double>, std::vector<double>>;
   static std::unordered_map<std::size_t, Entry> cache;
@@ -3065,20 +3077,21 @@ static RuleRef dunavant_cached(std::size_t order)
     std::vector<std::vector<double>> p;
     std::vector<double> w;
     dunavant_rule(order, p, w);
-    std::size_t n = w.size();
+    const std::size_t n = w.size();
     e.first.resize(3 * n, 0.0);
     e.second.resize(n);
     for (std::size_t i = 0; i < n; ++i)
     {
       e.first[3*i + 0] = p[i][0];
       e.first[3*i + 1] = p[i][1];
-      e.second[i]      = w[i] * 0.5;
+      // halve weights to normalize to reference triangle area = 0.5
+      e.second[i] = w[i] * 0.5;
     }
   }
   return { e.second.size(), e.first.data(), e.second.data() };
 }
 
-static RuleRef keast_cached(std::size_t order)
+RuleRef tetra_rule_keast(std::size_t order)
 {
   using Entry = std::pair<std::vector<double>, std::vector<double>>;
   static std::unordered_map<std::size_t, Entry> cache;
@@ -3086,7 +3099,8 @@ static RuleRef keast_cached(std::size_t order)
   auto& e = cache[order];
   if (e.second.empty())
   {
-    // hardcoded Keast rules; old weights divided by 6
+    // Hardcoded Keast rules; weights are the classic values divided by 6
+    // to normalize sum(w) = 1/6 (volume of reference tetrahedron).
     struct Pt { double r, s, t; };
     std::vector<Pt> pts;
     std::vector<double> w;
@@ -3125,7 +3139,8 @@ static RuleRef keast_cached(std::size_t order)
              {0.1005964238332010,      0.3994035761667990,      0.1005964238332010      },
              {0.1005964238332010,      0.1005964238332010,      0.3994035761667990      }};
       w = {-0.0789333333333330/6.0,
-            0.0457333333333335/6.0, 0.0457333333333335/6.0, 0.0457333333333335/6.0, 0.0457333333333335/6.0,
+            0.0457333333333335/6.0, 0.0457333333333335/6.0,
+            0.0457333333333335/6.0, 0.0457333333333335/6.0,
             0.1493333333333332/6.0, 0.1493333333333332/6.0, 0.1493333333333332/6.0,
             0.1493333333333332/6.0, 0.1493333333333332/6.0, 0.1493333333333332/6.0};
       break;
@@ -3144,10 +3159,13 @@ static RuleRef keast_cached(std::size_t order)
              {0.4544962958743505, 0.0455037041256495, 0.0455037041256495},
              {0.0455037041256495, 0.4544962958743505, 0.0455037041256495},
              {0.0455037041256495, 0.0455037041256495, 0.4544962958743505}};
-      w = {0.0734930431163618/6.0, 0.0734930431163618/6.0, 0.0734930431163618/6.0, 0.0734930431163618/6.0,
-           0.1126879257180158/6.0, 0.1126879257180158/6.0, 0.1126879257180158/6.0, 0.1126879257180158/6.0,
-           0.0425460207770813/6.0, 0.0425460207770813/6.0, 0.0425460207770813/6.0,
-           0.0425460207770813/6.0, 0.0425460207770813/6.0, 0.0425460207770813/6.0};
+      w = {0.0734930431163618/6.0, 0.0734930431163618/6.0,
+           0.0734930431163618/6.0, 0.0734930431163618/6.0,
+           0.1126879257180158/6.0, 0.1126879257180158/6.0,
+           0.1126879257180158/6.0, 0.1126879257180158/6.0,
+           0.0425460207770813/6.0, 0.0425460207770813/6.0,
+           0.0425460207770813/6.0, 0.0425460207770813/6.0,
+           0.0425460207770813/6.0, 0.0425460207770813/6.0};
       break;
     case 6:
       pts = {{0.2146028712591520, 0.2146028712591520, 0.2146028712591520},
@@ -3174,18 +3192,24 @@ static RuleRef keast_cached(std::size_t order)
              {0.6030056647916490, 0.0636610018750175, 0.2696723314583160},
              {0.6030056647916490, 0.0636610018750175, 0.0636610018750175},
              {0.6030056647916490, 0.2696723314583160, 0.0636610018750175}};
-      w = {0.0399227502581678/6.0, 0.0399227502581678/6.0, 0.0399227502581678/6.0, 0.0399227502581678/6.0,
-           0.0100772110553205/6.0, 0.0100772110553205/6.0, 0.0100772110553205/6.0, 0.0100772110553205/6.0,
-           0.0553571815436550/6.0, 0.0553571815436550/6.0, 0.0553571815436550/6.0, 0.0553571815436550/6.0,
-           0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0,
-           0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0,
-           0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0, 0.0482142857142855/6.0};
+      w = {0.0399227502581678/6.0, 0.0399227502581678/6.0,
+           0.0399227502581678/6.0, 0.0399227502581678/6.0,
+           0.0100772110553205/6.0, 0.0100772110553205/6.0,
+           0.0100772110553205/6.0, 0.0100772110553205/6.0,
+           0.0553571815436550/6.0, 0.0553571815436550/6.0,
+           0.0553571815436550/6.0, 0.0553571815436550/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0,
+           0.0482142857142855/6.0, 0.0482142857142855/6.0};
       break;
     default:
       throw std::runtime_error("tetra_rule_keast: order must be 1..6");
     }
 
-    std::size_t n = pts.size();
+    const std::size_t n = pts.size();
     e.first.resize(3 * n);
     e.second = w;
     for (std::size_t i = 0; i < n; ++i)
@@ -3197,9 +3221,5 @@ static RuleRef keast_cached(std::size_t order)
   }
   return { e.second.size(), e.first.data(), e.second.data() };
 }
-
-RuleRef interval_rule_legendre(std::size_t order)  { return legendre_cached(order);  }
-RuleRef triangle_rule_dunavant(std::size_t order)  { return dunavant_cached(order);  }
-RuleRef tetra_rule_keast(std::size_t order)        { return keast_cached(order);     }
 
 } // namespace simpex::tables

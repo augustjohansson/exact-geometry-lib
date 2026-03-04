@@ -180,3 +180,107 @@ TEST_CASE("SimplexQuadrature: tetrahedron")
     CHECK(qr.first.size() == qr.second.size() * 3);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Magnitude tests: entities of size ~1e-13, ~1e13, and mixed
+// ---------------------------------------------------------------------------
+
+TEST_CASE("SimplexQuadrature: magnitude ~1e-13")
+{
+  const double s = 1e-13;
+
+  SECTION("interval weight sum (small scale)")
+  {
+    SimplexQuadrature sq(1, 2);
+    std::vector<Point> coords = { Point(0.0), Point(s) };
+    auto qr = sq.compute_quadrature_rule_interval(coords, 1);
+    CHECK(std::abs(sum_weights(qr) - s) < s * 1e-12);
+  }
+
+  SECTION("triangle weight sum (small scale)")
+  {
+    SimplexQuadrature sq(2, 2);
+    std::vector<Point> coords = {
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0), Point(0.0, s, 0.0) };
+    auto qr = sq.compute_quadrature_rule_triangle(coords, 2);
+    // area = 0.5 * s^2
+    CHECK(std::abs(sum_weights(qr) - 0.5*s*s) < 0.5*s*s * 1e-12);
+  }
+
+  SECTION("tet weight sum (small scale)")
+  {
+    SimplexQuadrature sq(3, 2);
+    std::vector<Point> coords = {
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s) };
+    auto qr = sq.compute_quadrature_rule_tetrahedron(coords, 3);
+    // volume = s^3/6
+    CHECK(std::abs(sum_weights(qr) - s*s*s/6.0) < s*s*s/6.0 * 1e-12);
+  }
+}
+
+TEST_CASE("SimplexQuadrature: magnitude ~1e13")
+{
+  const double s = 1e13;
+
+  SECTION("interval weight sum (large scale)")
+  {
+    SimplexQuadrature sq(1, 2);
+    std::vector<Point> coords = { Point(0.0), Point(s) };
+    auto qr = sq.compute_quadrature_rule_interval(coords, 1);
+    CHECK(std::abs(sum_weights(qr) - s) < s * 1e-12);
+  }
+
+  SECTION("triangle weight sum (large scale)")
+  {
+    SimplexQuadrature sq(2, 2);
+    std::vector<Point> coords = {
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0), Point(0.0, s, 0.0) };
+    auto qr = sq.compute_quadrature_rule_triangle(coords, 2);
+    CHECK(std::abs(sum_weights(qr) - 0.5*s*s) < 0.5*s*s * 1e-12);
+  }
+
+  SECTION("tet weight sum (large scale)")
+  {
+    SimplexQuadrature sq(3, 2);
+    std::vector<Point> coords = {
+      Point(0.0, 0.0, 0.0), Point(s, 0.0, 0.0),
+      Point(0.0, s, 0.0),   Point(0.0, 0.0, s) };
+    auto qr = sq.compute_quadrature_rule_tetrahedron(coords, 3);
+    CHECK(std::abs(sum_weights(qr) - s*s*s/6.0) < s*s*s/6.0 * 1e-12);
+  }
+}
+
+TEST_CASE("SimplexQuadrature: mixed magnitudes")
+{
+  SECTION("interval mixed: [0, 1e-13]")
+  {
+    SimplexQuadrature sq(1, 2);
+    const double len = 1e-13;
+    std::vector<Point> coords = { Point(0.0), Point(len) };
+    auto qr = sq.compute_quadrature_rule_interval(coords, 1);
+    CHECK(std::abs(sum_weights(qr) - len) < len * 1e-12);
+  }
+
+  SECTION("interval mixed: [0, 1e13]")
+  {
+    SimplexQuadrature sq(1, 2);
+    const double len = 1e13;
+    std::vector<Point> coords = { Point(0.0), Point(len) };
+    auto qr = sq.compute_quadrature_rule_interval(coords, 1);
+    CHECK(std::abs(sum_weights(qr) - len) < len * 1e-12);
+  }
+
+  SECTION("tet with mixed edge lengths (~1e-13 and ~1e13)")
+  {
+    SimplexQuadrature sq(3, 2);
+    // Volume = (1e-13 * 1e13 * 1.0) / 6 = 1.0/6
+    std::vector<Point> coords = {
+      Point(0.0,    0.0,   0.0),
+      Point(1e-13,  0.0,   0.0),
+      Point(0.0,    1e13,  0.0),
+      Point(0.0,    0.0,   1.0) };
+    auto qr = sq.compute_quadrature_rule_tetrahedron(coords, 3);
+    CHECK(std::abs(sum_weights(qr) - 1.0/6.0) < 1e-10);
+  }
+}

@@ -140,14 +140,6 @@ namespace simpex
     void setup_qr_reference_triangle(std::size_t order);
     void setup_qr_reference_tetrahedron(std::size_t order);
 
-    // Utilities
-    double segment_length(const Point& a, const Point& b, std::size_t gdim) const;
-    double triangle_area(const Point& a, const Point& b, const Point& c, std::size_t gdim) const;
-    double tetra_volume(const Point& a, const Point& b, const Point& c, const Point& d) const;
-
-    void write_point(double* out, std::size_t gdim, const Point& p) const;
-
-
     // Utility function for computing a Vandermonde type matrix in a
     // Chebyshev basis
     static Eigen::MatrixXd

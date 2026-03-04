@@ -126,6 +126,32 @@ namespace simpex
       return a < x and x < b;
     }
 
+    /// Compute segment length (1D, 2D, or 3D)
+    static inline double segment_length(const Point& a, const Point& b, std::size_t gdim)
+    {
+      const Point e = b - a;
+      if (gdim == 1) return std::abs(e.x());
+      if (gdim == 2) return std::sqrt(e.x()*e.x() + e.y()*e.y());
+      return e.norm();
+    }
+
+    /// Compute triangle area (2D in-plane or 3D embedded)
+    static inline double triangle_area(const Point& a, const Point& b, const Point& c,
+                                        std::size_t gdim)
+    {
+      if (gdim == 2) return 0.5 * std::abs(orient2d(a, b, c));
+      const Point u = b - a;
+      const Point v = c - a;
+      return 0.5 * u.cross(v).norm();
+    }
+
+    /// Compute tetrahedron volume
+    static inline double tetra_volume(const Point& a, const Point& b,
+                                       const Point& c, const Point& d)
+    {
+      return std::abs(orient3d(a, b, c, d)) / 6.0;
+    }
+
   };
 
 }
