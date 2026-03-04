@@ -747,15 +747,27 @@ bool CollisionPredicates::_collides_triangle_triangle_3d(const Point& p0,
   const double qp1 = orient3d(q0, q1, q2, p1);
   const double qp2 = orient3d(q0, q1, q2, p2);
 
+  // opposite_sides: returns true iff the face-edge test is worth running
+  // (at least one endpoint on the plane, or endpoints on opposite sides).
+  auto opposite_sides = [](double s0, double s1) noexcept {
+    return (s0 == 0.0) || (s1 == 0.0) || ((s0 > 0.0) != (s1 > 0.0));
+  };
+
   // Check each edge of q against the p-face, using pre-computed hints.
-  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q0, q1, pq0, pq1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q1, q2, pq1, pq2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0, p1, p2, q2, q0, pq2, pq0)) return true;
+  if (opposite_sides(pq0, pq1) &&
+      _collides_triangle_segment_3d_with_hint(p0, p1, p2, q0, q1, pq0, pq1)) return true;
+  if (opposite_sides(pq1, pq2) &&
+      _collides_triangle_segment_3d_with_hint(p0, p1, p2, q1, q2, pq1, pq2)) return true;
+  if (opposite_sides(pq2, pq0) &&
+      _collides_triangle_segment_3d_with_hint(p0, p1, p2, q2, q0, pq2, pq0)) return true;
 
   // Check each edge of p against the q-face, using pre-computed hints.
-  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p0, p1, qp0, qp1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p1, p2, qp1, qp2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0, q1, q2, p2, p0, qp2, qp0)) return true;
+  if (opposite_sides(qp0, qp1) &&
+      _collides_triangle_segment_3d_with_hint(q0, q1, q2, p0, p1, qp0, qp1)) return true;
+  if (opposite_sides(qp1, qp2) &&
+      _collides_triangle_segment_3d_with_hint(q0, q1, q2, p1, p2, qp1, qp2)) return true;
+  if (opposite_sides(qp2, qp0) &&
+      _collides_triangle_segment_3d_with_hint(q0, q1, q2, p2, p0, qp2, qp0)) return true;
 
   return false;
 }
@@ -797,13 +809,6 @@ bool CollisionPredicates::_collides_tetrahedron_segment_3d(const Point& p0,
                                                            const Point& q0,
                                                            const Point& q1)
 {
-  bool CollisionPredicates::_collides_tetrahedron_segment_3d(const Point& p0,
-							   const Point& p1,
-							   const Point& p2,
-							   const Point& p3,
-							   const Point& q0,
-							   const Point& q1)
-{
   const double ref = orient3d(p0, p1, p2, p3);
   const bool pos = (ref > 0.0);
 
@@ -827,11 +832,18 @@ bool CollisionPredicates::_collides_tetrahedron_segment_3d(const Point& p0,
   const double fo3_q1 = orient3d(p1, p3, p2, q1);
   if (inside_from_fo(fo0_q1, fo1_q1, fo2_q1, fo3_q1)) return true;
 
-  // Phase 3: face crossings (now we have everything we need)
-  if (_collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q1, -fo3_q0, -fo3_q1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q1,  fo2_q0,  fo2_q1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q1, -fo1_q0, -fo1_q1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  fo0_q0,  fo0_q1)) return true;
+  // Phase 3: face crossings -- skip if both endpoints are on the same strict side.
+  auto opp = [](double s0, double s1) noexcept {
+    return (s0 == 0.0) || (s1 == 0.0) || ((s0 > 0.0) != (s1 > 0.0));
+  };
+  if (opp(-fo3_q0, -fo3_q1) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q1, -fo3_q0, -fo3_q1)) return true;
+  if (opp( fo2_q0,  fo2_q1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q1,  fo2_q0,  fo2_q1)) return true;
+  if (opp(-fo1_q0, -fo1_q1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q1, -fo1_q0, -fo1_q1)) return true;
+  if (opp( fo0_q0,  fo0_q1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  fo0_q0,  fo0_q1)) return true;
 
   return false;
 
@@ -878,38 +890,60 @@ bool CollisionPredicates::_collides_tetrahedron_triangle_3d(const Point& p0,
   const FO fq2 = eval_q(q2);
   if (inside(fq2.fo0, fq2.fo1, fq2.fo2, fq2.fo3)) return true;
 
+  auto opp = [](double s0, double s1) noexcept {
+    return (s0 == 0.0) || (s1 == 0.0) || ((s0 > 0.0) != (s1 > 0.0));
+  };
+
   // Face (p1,p2,p3): plane-orient = -fo3_*
-  if (_collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q1, -fq0.fo3, -fq1.fo3)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p1,p2,p3, q1,q2, -fq1.fo3, -fq2.fo3)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q2, -fq0.fo3, -fq2.fo3)) return true;
+  if (opp(-fq0.fo3, -fq1.fo3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q1, -fq0.fo3, -fq1.fo3)) return true;
+  if (opp(-fq1.fo3, -fq2.fo3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q1,q2, -fq1.fo3, -fq2.fo3)) return true;
+  if (opp(-fq0.fo3, -fq2.fo3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q2, -fq0.fo3, -fq2.fo3)) return true;
 
   // Face (p0,p2,p3): plane-orient =  fo2_*
-  if (_collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q1,  fq0.fo2,  fq1.fo2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p2,p3, q1,q2,  fq1.fo2,  fq2.fo2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q2,  fq0.fo2,  fq2.fo2)) return true;
+  if (opp( fq0.fo2,  fq1.fo2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q1,  fq0.fo2,  fq1.fo2)) return true;
+  if (opp( fq1.fo2,  fq2.fo2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q1,q2,  fq1.fo2,  fq2.fo2)) return true;
+  if (opp( fq0.fo2,  fq2.fo2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q2,  fq0.fo2,  fq2.fo2)) return true;
 
   // Face (p0,p1,p3): plane-orient = -fo1_*
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q1, -fq0.fo1, -fq1.fo1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p3, q1,q2, -fq1.fo1, -fq2.fo1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q2, -fq0.fo1, -fq2.fo1)) return true;
+  if (opp(-fq0.fo1, -fq1.fo1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q1, -fq0.fo1, -fq1.fo1)) return true;
+  if (opp(-fq1.fo1, -fq2.fo1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q1,q2, -fq1.fo1, -fq2.fo1)) return true;
+  if (opp(-fq0.fo1, -fq2.fo1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q2, -fq0.fo1, -fq2.fo1)) return true;
 
   // Face (p0,p1,p2): plane-orient =  fo0_*
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  fq0.fo0,  fq1.fo0)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p2, q1,q2,  fq1.fo0,  fq2.fo0)) return true;
-  if (_collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q2,  fq0.fo0,  fq2.fo0)) return true;
+  if (opp( fq0.fo0,  fq1.fo0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  fq0.fo0,  fq1.fo0)) return true;
+  if (opp( fq1.fo0,  fq2.fo0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q1,q2,  fq1.fo0,  fq2.fo0)) return true;
+  if (opp( fq0.fo0,  fq2.fo0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q2,  fq0.fo0,  fq2.fo0)) return true;
 
-  // Only now compute tet-edge vs triangle-face batch (expensive, 4 orient3d)
+  // Tet-edge vs triangle-face: compute orient3d for each tet vertex w.r.t q-face.
   const double qf_p0 = orient3d(q0,q1,q2,p0);
   const double qf_p1 = orient3d(q0,q1,q2,p1);
   const double qf_p2 = orient3d(q0,q1,q2,p2);
   const double qf_p3 = orient3d(q0,q1,q2,p3);
 
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p1, qf_p0,qf_p1)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p2, qf_p0,qf_p2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p3, qf_p0,qf_p3)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p2, qf_p1,qf_p2)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p3, qf_p1,qf_p3)) return true;
-  if (_collides_triangle_segment_3d_with_hint(q0,q1,q2, p2,p3, qf_p2,qf_p3)) return true;
+  if (opp(qf_p0,qf_p1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p1, qf_p0,qf_p1)) return true;
+  if (opp(qf_p0,qf_p2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p2, qf_p0,qf_p2)) return true;
+  if (opp(qf_p0,qf_p3) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p3, qf_p0,qf_p3)) return true;
+  if (opp(qf_p1,qf_p2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p2, qf_p1,qf_p2)) return true;
+  if (opp(qf_p1,qf_p3) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p3, qf_p1,qf_p3)) return true;
+  if (opp(qf_p2,qf_p3) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p2,p3, qf_p2,qf_p3)) return true;
 
   return false;
 }
@@ -971,10 +1005,125 @@ bool CollisionPredicates::_collides_tetrahedron_tetrahedron_3d(const Point& p0,
   const FO q_at_p2 = faces_of_q_at_p(p2); if (inside_fo(ref_q, q_at_p2)) return true;
   const FO q_at_p3 = faces_of_q_at_p(p3); if (inside_fo(ref_q, q_at_p3)) return true;
 
-  // ... Phase C: face-edge tests computed per face, not all at once. only if neither containment occurs, compute orientations needed for face-edge tests
-  // Test p-face (p1,p2,p3) using -fo.f3 from those FOs, without computing any other p-face quantities.
- // Similarly, for q-faces against p-edges, use the FO computed for each p-vertex w.r.t q faces.
+  // Phase C: face-edge tests using the FOs already computed above.
+  // Skip each test when both q-edge endpoints lie strictly on the same side.
+  auto opp = [](double s0, double s1) noexcept {
+    return (s0 == 0.0) || (s1 == 0.0) || ((s0 > 0.0) != (s1 > 0.0));
+  };
 
+  // 4 p-faces vs 6 q-edges
+  // p-face (p1,p2,p3): plane-orient for qi = -p_at_qi.f3
+  if (opp(-p_at_q0.f3, -p_at_q1.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q1, -p_at_q0.f3,-p_at_q1.f3)) return true;
+  if (opp(-p_at_q0.f3, -p_at_q2.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q2, -p_at_q0.f3,-p_at_q2.f3)) return true;
+  if (opp(-p_at_q0.f3, -p_at_q3.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q0,q3, -p_at_q0.f3,-p_at_q3.f3)) return true;
+  if (opp(-p_at_q1.f3, -p_at_q2.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q1,q2, -p_at_q1.f3,-p_at_q2.f3)) return true;
+  if (opp(-p_at_q1.f3, -p_at_q3.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q1,q3, -p_at_q1.f3,-p_at_q3.f3)) return true;
+  if (opp(-p_at_q2.f3, -p_at_q3.f3) &&
+      _collides_triangle_segment_3d_with_hint(p1,p2,p3, q2,q3, -p_at_q2.f3,-p_at_q3.f3)) return true;
+
+  // p-face (p0,p2,p3): plane-orient for qi =  p_at_qi.f2
+  if (opp( p_at_q0.f2,  p_at_q1.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q1,  p_at_q0.f2, p_at_q1.f2)) return true;
+  if (opp( p_at_q0.f2,  p_at_q2.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q2,  p_at_q0.f2, p_at_q2.f2)) return true;
+  if (opp( p_at_q0.f2,  p_at_q3.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q0,q3,  p_at_q0.f2, p_at_q3.f2)) return true;
+  if (opp( p_at_q1.f2,  p_at_q2.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q1,q2,  p_at_q1.f2, p_at_q2.f2)) return true;
+  if (opp( p_at_q1.f2,  p_at_q3.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q1,q3,  p_at_q1.f2, p_at_q3.f2)) return true;
+  if (opp( p_at_q2.f2,  p_at_q3.f2) &&
+      _collides_triangle_segment_3d_with_hint(p0,p2,p3, q2,q3,  p_at_q2.f2, p_at_q3.f2)) return true;
+
+  // p-face (p0,p1,p3): plane-orient for qi = -p_at_qi.f1
+  if (opp(-p_at_q0.f1, -p_at_q1.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q1, -p_at_q0.f1,-p_at_q1.f1)) return true;
+  if (opp(-p_at_q0.f1, -p_at_q2.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q2, -p_at_q0.f1,-p_at_q2.f1)) return true;
+  if (opp(-p_at_q0.f1, -p_at_q3.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q0,q3, -p_at_q0.f1,-p_at_q3.f1)) return true;
+  if (opp(-p_at_q1.f1, -p_at_q2.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q1,q2, -p_at_q1.f1,-p_at_q2.f1)) return true;
+  if (opp(-p_at_q1.f1, -p_at_q3.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q1,q3, -p_at_q1.f1,-p_at_q3.f1)) return true;
+  if (opp(-p_at_q2.f1, -p_at_q3.f1) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p3, q2,q3, -p_at_q2.f1,-p_at_q3.f1)) return true;
+
+  // p-face (p0,p1,p2): plane-orient for qi =  p_at_qi.f0
+  if (opp( p_at_q0.f0,  p_at_q1.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q1,  p_at_q0.f0, p_at_q1.f0)) return true;
+  if (opp( p_at_q0.f0,  p_at_q2.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q2,  p_at_q0.f0, p_at_q2.f0)) return true;
+  if (opp( p_at_q0.f0,  p_at_q3.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q0,q3,  p_at_q0.f0, p_at_q3.f0)) return true;
+  if (opp( p_at_q1.f0,  p_at_q2.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q1,q2,  p_at_q1.f0, p_at_q2.f0)) return true;
+  if (opp( p_at_q1.f0,  p_at_q3.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q1,q3,  p_at_q1.f0, p_at_q3.f0)) return true;
+  if (opp( p_at_q2.f0,  p_at_q3.f0) &&
+      _collides_triangle_segment_3d_with_hint(p0,p1,p2, q2,q3,  p_at_q2.f0, p_at_q3.f0)) return true;
+
+  // 4 q-faces vs 6 p-edges
+  // q-face (q1,q2,q3): plane-orient for pi = -q_at_pi.f3
+  if (opp(-q_at_p0.f3, -q_at_p1.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p0,p1, -q_at_p0.f3,-q_at_p1.f3)) return true;
+  if (opp(-q_at_p0.f3, -q_at_p2.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p0,p2, -q_at_p0.f3,-q_at_p2.f3)) return true;
+  if (opp(-q_at_p0.f3, -q_at_p3.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p0,p3, -q_at_p0.f3,-q_at_p3.f3)) return true;
+  if (opp(-q_at_p1.f3, -q_at_p2.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p1,p2, -q_at_p1.f3,-q_at_p2.f3)) return true;
+  if (opp(-q_at_p1.f3, -q_at_p3.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p1,p3, -q_at_p1.f3,-q_at_p3.f3)) return true;
+  if (opp(-q_at_p2.f3, -q_at_p3.f3) &&
+      _collides_triangle_segment_3d_with_hint(q1,q2,q3, p2,p3, -q_at_p2.f3,-q_at_p3.f3)) return true;
+
+  // q-face (q0,q2,q3): plane-orient for pi =  q_at_pi.f2
+  if (opp( q_at_p0.f2,  q_at_p1.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p0,p1,  q_at_p0.f2, q_at_p1.f2)) return true;
+  if (opp( q_at_p0.f2,  q_at_p2.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p0,p2,  q_at_p0.f2, q_at_p2.f2)) return true;
+  if (opp( q_at_p0.f2,  q_at_p3.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p0,p3,  q_at_p0.f2, q_at_p3.f2)) return true;
+  if (opp( q_at_p1.f2,  q_at_p2.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p1,p2,  q_at_p1.f2, q_at_p2.f2)) return true;
+  if (opp( q_at_p1.f2,  q_at_p3.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p1,p3,  q_at_p1.f2, q_at_p3.f2)) return true;
+  if (opp( q_at_p2.f2,  q_at_p3.f2) &&
+      _collides_triangle_segment_3d_with_hint(q0,q2,q3, p2,p3,  q_at_p2.f2, q_at_p3.f2)) return true;
+
+  // q-face (q0,q1,q3): plane-orient for pi = -q_at_pi.f1
+  if (opp(-q_at_p0.f1, -q_at_p1.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p0,p1, -q_at_p0.f1,-q_at_p1.f1)) return true;
+  if (opp(-q_at_p0.f1, -q_at_p2.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p0,p2, -q_at_p0.f1,-q_at_p2.f1)) return true;
+  if (opp(-q_at_p0.f1, -q_at_p3.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p0,p3, -q_at_p0.f1,-q_at_p3.f1)) return true;
+  if (opp(-q_at_p1.f1, -q_at_p2.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p1,p2, -q_at_p1.f1,-q_at_p2.f1)) return true;
+  if (opp(-q_at_p1.f1, -q_at_p3.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p1,p3, -q_at_p1.f1,-q_at_p3.f1)) return true;
+  if (opp(-q_at_p2.f1, -q_at_p3.f1) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q3, p2,p3, -q_at_p2.f1,-q_at_p3.f1)) return true;
+
+  // q-face (q0,q1,q2): plane-orient for pi =  q_at_pi.f0
+  if (opp( q_at_p0.f0,  q_at_p1.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p1,  q_at_p0.f0, q_at_p1.f0)) return true;
+  if (opp( q_at_p0.f0,  q_at_p2.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p2,  q_at_p0.f0, q_at_p2.f0)) return true;
+  if (opp( q_at_p0.f0,  q_at_p3.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p0,p3,  q_at_p0.f0, q_at_p3.f0)) return true;
+  if (opp( q_at_p1.f0,  q_at_p2.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p2,  q_at_p1.f0, q_at_p2.f0)) return true;
+  if (opp( q_at_p1.f0,  q_at_p3.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p1,p3,  q_at_p1.f0, q_at_p3.f0)) return true;
+  if (opp( q_at_p2.f0,  q_at_p3.f0) &&
+      _collides_triangle_segment_3d_with_hint(q0,q1,q2, p2,p3,  q_at_p2.f0, q_at_p3.f0)) return true;
 
   return false;
 }

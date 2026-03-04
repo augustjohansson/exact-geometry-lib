@@ -9,21 +9,6 @@ double simpex::orient1d(double a, double b, double x)
   return 0.0;
 }
 //-----------------------------------------------------------------------------
-double simpex::orient2d(const Point& a, const Point& b, const Point& c)
-{
-  return simpex::_orient2d(a.coordinates(),
-                           b.coordinates(),
-                           c.coordinates());
-}
-//-----------------------------------------------------------------------------
-double simpex::orient3d(const Point& a, const Point& b, const Point& c, const Point& d)
-{
-  return simpex::_orient3d(a.coordinates(),
-                           b.coordinates(),
-                           c.coordinates(),
-                           d.coordinates());
-}
-//-----------------------------------------------------------------------------
 
 /*****************************************************************************/
 /*                                                                           */

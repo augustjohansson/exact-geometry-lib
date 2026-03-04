@@ -12,10 +12,10 @@
 #ifndef __PREDICATES_H
 #define __PREDICATES_H
 
+#include "Point.h"
+
 namespace simpex
 {
-
-  class Point;
 
   /// Initialize tolerances for exact arithmetic
   void exactinit();
@@ -29,7 +29,10 @@ namespace simpex
   double _orient2d(const double* a, const double* b, const double* c);
 
   /// Convenience function using simpex::Point
-  double orient2d(const Point& a, const Point& b, const Point& c);
+  inline double orient2d(const Point& a, const Point& b, const Point& c)
+  {
+    return _orient2d(a.coordinates(), b.coordinates(), c.coordinates());
+  }
 
   /// Compute relative orientation of points a, b, c, d. The
   /// orientation is such that orient3d(a, b, c, d) > 0 if a, b, c, d
@@ -37,7 +40,10 @@ namespace simpex
   double _orient3d(const double* a, const double* b, const double* c, const double* d);
 
   /// Convenience function using simpex::Point
-  double orient3d(const Point& a, const Point& b, const Point& c, const Point& d);
+  inline double orient3d(const Point& a, const Point& b, const Point& c, const Point& d)
+  {
+    return _orient3d(a.coordinates(), b.coordinates(), c.coordinates(), d.coordinates());
+  }
 
   /// Class used for automatic initialization of tolerances at startup.
   /// A global instance is defined inside predicates.cpp to ensure that
