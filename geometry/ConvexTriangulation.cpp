@@ -14,9 +14,6 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
-//
-// First added:  2016-06-01
-// Last changed: 2018-02-09
 
 #include <algorithm>
 #include <cassert>
@@ -36,7 +33,6 @@ using namespace simpex;
 //-----------------------------------------------------------------------------
 namespace
 {
-  //-----------------------------------------------------------------------------
   // Create a unique list of points in the sense that |p-q| > tol in each dimension
   std::vector<Point>
   unique_points(const std::vector<Point>& input_points,
@@ -73,34 +69,27 @@ namespace
   }
   //------------------------------------------------------------------------------
   // Check if q lies between p0 and p1. p0, p1 and q are assumed to be colinear
-  bool is_between(Point p0, Point p1, Point q)
+  inline bool is_between(const Point& p0, const Point& p1, const Point& q)
   {
     const double sqnorm = (p1-p0).squared_norm();
     return (p0-q).squared_norm() < sqnorm && (p1-q).squared_norm() < sqnorm;
   }
   //------------------------------------------------------------------------------
-  // Return the indices to the points that forms the polygon that is
-  // the convex hull of the points. The points are assumed to be coplanar
+  // Return the edge pairs forming the convex hull of a set of coplanar points.
   std::vector<std::pair<std::size_t, std::size_t>>
   compute_convex_hull_planar(const std::vector<Point>& points)
   {
-    // FIXME: Ensure that 0, 1, 2 are not colinear
     Point normal = GeometryTools::cross_product(points[0], points[1], points[2]);
     normal /= normal.norm();
 
     std::vector<std::pair<std::size_t, std::size_t>> edges;
 
-    // Filter out points which are in the interior of the
-    // convex hull of the planar points.
     for (std::size_t i = 0; i < points.size(); i++)
     {
       for (std::size_t j = i+1; j < points.size(); j++)
       {
-        // Form at plane of i, j  and i + the normal of plane
         const Point r = points[i]+normal;
 
-        // search for the first point which is not in the
-        // i, j, p plane to determine sign of orietation
         double edge_orientation = 0;
         {
           std::size_t a = 0;
@@ -133,7 +122,6 @@ namespace
 	      colinear.push_back(p);
 	    }
 
-            // Sign change: triangle is not on convex hull
             if (edge_orientation * orientation < 0)
             {
               on_convex_hull = false;
@@ -145,8 +133,6 @@ namespace
         {
 	  if (!colinear.empty())
 	  {
-	    // Several points are colinear. Only add if i and j are
-	    // the 1d convex hull of the colinear points
 	    bool is_linear_convex_hull = true;
 	    for (std::size_t q : colinear)
 	    {
@@ -219,20 +205,16 @@ ConvexTriangulation::_triangulate_1d(const std::vector<Point>& p,
 
   if (unique_p.size() == 2)
   {
-    // Return the point list. Since it is unique it is also
-    // non-degenerate
     std::vector<std::vector<Point>> t { unique_p };
     return t;
   }
   else if (unique_p.size() < 2)
   {
-    // Return empty if 0 or 1 point
     return std::vector<std::vector<Point>>();
   }
   else
   {
-    // Here unique_p.size() > 2. Make sure the points are
-    // approximately collinear
+    // Here unique_p.size() > 2: points must be approximately collinear
     bool collinear = true;
     for (std::size_t i = 2; i < unique_p.size(); ++i)
     {
@@ -246,7 +228,7 @@ ConvexTriangulation::_triangulate_1d(const std::vector<Point>& p,
 
     assert(collinear);
 
-    // Return extremal
+    // Return extremal points
     const Point v = unique_p[1] - unique_p[0];
     std::vector<std::pair<double, std::size_t>> order;
     order.emplace_back(0.0, 0);
@@ -256,7 +238,6 @@ ConvexTriangulation::_triangulate_1d(const std::vector<Point>& p,
 
     std::sort(order.begin(), order.end());
 
-    // Return first and last
     return {{ unique_p[order.front().second],
 	  unique_p[order.back().second] }};
   }
@@ -269,7 +250,6 @@ ConvexTriangulation::_triangulate_graham_scan_2d(const std::vector<Point>& input
 {
   assert(GeometryPredicates::is_finite(input_points));
 
-  // Make sure the input points are unique
   const std::size_t tdim = 2;
   const std::size_t gdim = 2;
   std::vector<Point> points = unique_points(input_points, gdim, 3.0e-16);
@@ -279,23 +259,29 @@ ConvexTriangulation::_triangulate_graham_scan_2d(const std::vector<Point>& input
 
   if (points.size() == 3)
   {
-    const std::size_t tdim = 2;
     std::vector<std::vector<Point>> triangulation;
     if (!GeometryPredicates::is_degenerate(points, tdim, gdim))
       triangulation.push_back(points);
     return triangulation;
   }
 
-  // Sometimes we can get an extra point on an edge: a-----c--b. This
-  // point c may cause problems for the graham scan. To avoid this,
-  // use an extra center point.  Use this center point and point no 0
-  // as reference for the angle calculation
+  // Use the bottommost point (lowest y, break ties by lowest x) as the pivot.
+  // This is the canonical Graham scan starting point.
+  std::size_t pivot = 0;
+  for (std::size_t m = 1; m < points.size(); ++m)
+  {
+    if (points[m].y() < points[pivot].y() ||
+        (points[m].y() == points[pivot].y() && points[m].x() < points[pivot].x()))
+      pivot = m;
+  }
+  std::swap(points[0], points[pivot]);
+
+  // Compute center for angle reference
   Point pointscenter = points[0];
   for (std::size_t m = 1; m < points.size(); ++m)
     pointscenter += points[m];
   pointscenter /= points.size();
 
-  // Reference
   const Point ref = points[0] - pointscenter;
 
   // Calculate and store angles
@@ -310,15 +296,12 @@ ConvexTriangulation::_triangulate_graham_scan_2d(const std::vector<Point>& input
     order.emplace_back(alpha, m);
   }
 
-  // Sort angles
   std::sort(order.begin(), order.end());
 
-  // Tesselate
   std::vector<std::vector<Point>> triangulation;
 
   for (std::size_t m = 0; m < order.size()-1; ++m)
   {
-    // FIXME: We could consider only triangles with area > tolerance here.
     const std::vector<Point> tri {{ points[0],
 	  points[order[m].second],
 	  points[order[m + 1].second] }};
@@ -334,12 +317,6 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 {
   assert(GeometryPredicates::is_finite(input_points));
 
-  //std::cout << "Input to 3D Graham scan:" << std::endl;
-  //for (auto p : input_points)
-  //  std::cout << p << std::endl;
-
-  // Make sure the input points are unique. We assume this has
-  // negligble effect on volume
   const std::size_t tdim = 3;
   const std::size_t gdim = 3;
   std::vector<Point> points = unique_points(input_points, gdim, 3.0e-16);
@@ -348,28 +325,23 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 
   if (points.size() < 4)
   {
-    // Empty
     return triangulation;
   }
   else if (points.size() == 4)
   {
-    // Single tetrahedron
     if (!GeometryPredicates::is_degenerate(points, tdim, gdim))
       triangulation.push_back(points);
     return triangulation;
   }
   else
   {
-    // Construct tetrahedra using facet points and a center point
     Point polyhedroncenter(0,0,0);
     for (const Point& p : points)
       polyhedroncenter += p;
     polyhedroncenter /= points.size();
 
-    // FIXME: Better data structure than set?
     std::set<std::tuple<std::size_t, std::size_t, std::size_t> > checked;
 
-    // Loop over all triplets
     for (std::size_t i = 0; i < points.size(); ++i)
     {
       for (std::size_t j = i+1; j < points.size(); ++j)
@@ -378,35 +350,23 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
         {
 	  if (checked.emplace(std::make_tuple(i, j, k)).second)
 	  {
-            // Test for the special case where i, j, k are collinear
-            {
-              const Point ij = points[j] - points[i];
-              const Point ik = points[k] - points[i];
-              if ( -(std::abs( (ij/ij.norm() ).dot(ik/ik.norm()))-1)  < 3.0e-16)
-                continue;
-            }
+            // Skip collinear triples using the exact cross-product (no division).
+            if ((points[j]-points[i]).cross(points[k]-points[i]).squared_norm() == 0.0)
+              continue;
 
-            // Check whether all other points are on one side of this
-            // (i,j,k) facet, i.e. we're on the convex
-            // hull. Initialize as true for the case of only three
-            // coplanar points.
 	    bool on_convex_hull = true;
-
-	    // Use orient3d to determine if the plane (i,j,k) is on the
-	    // convex hull.
 	    std::vector<std::size_t> coplanar = { i, j, k };
-	    double previous_orientation;
+	    double previous_orientation = 0.0;
 	    bool first = true;
 
 	    for (std::size_t m = 0; m < points.size(); ++m)
 	    {
-	      if (m != i and m != j and m != k)
+	      if (m != i && m != j && m != k)
 	      {
 		const double orientation = orient3d(points[i],
 						    points[j],
 						    points[k],
 						    points[m]);
-		// Save point index if we find coplanar points
 		if (orientation == 0)
 		  coplanar.push_back(m);
                 else
@@ -418,7 +378,6 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
                   }
                   else
                   {
-                    // Sign change: triangle is not on convex hull
                     if (previous_orientation * orientation < 0)
                     {
                       on_convex_hull = false;
@@ -432,7 +391,6 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 	    {
 	      if (coplanar.size() == 3)
 	      {
-		// Form one tetrahedron
 		std::vector<Point> cand = { points[i],
 					    points[j],
 					    points[k],
@@ -440,29 +398,15 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 #ifdef DOLFIN_ENABLE_GEOMETRY_DEBUGGING
                 if (cgal_tet_is_degenerate(cand))
                   throw std::runtime_error("tet is degenerate");
-
 #endif
-
-		// FIXME: Here we could include if determinant is sufficiently large
-                //for (auto p : cand)
-                //  std::cout << " " << p;
-                //std::cout << std::endl;
 		if (!GeometryPredicates::is_degenerate(cand, tdim, gdim))
 		  triangulation.push_back(cand);
 	      }
 	      else // At least four coplanar points
 	      {
-		// Tessellate as in the triangle-triangle intersection
-		// case: First sort points using a Graham scan, then
-		// connect to form triangles. Finally form tetrahedra
-		// using the center of the polyhedron.
-
-		// Use the center of the coplanar points and point no 0
-		// as reference for the angle calculation
-
 		std::vector<Point> coplanar_points;
-		for (std::size_t i : coplanar)
-		  coplanar_points.push_back(points[i]);
+		for (std::size_t idx : coplanar)
+		  coplanar_points.push_back(points[idx]);
 
 		std::vector<std::pair<std::size_t, std::size_t>> coplanar_convex_hull =
 		  compute_convex_hull_planar(coplanar_points);
@@ -472,7 +416,6 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 		  coplanar_center += p;
 		coplanar_center /= coplanar_points.size();
 
-		// Tessellate
 		for (const std::pair<std::size_t, std::size_t>& edge : coplanar_convex_hull)
 		{
 		  const std::vector<Point> cand {{ polyhedroncenter,
@@ -496,17 +439,15 @@ ConvexTriangulation::_triangulate_graham_scan_3d(const std::vector<Point>& input
 #endif
 		  }
 
-		  // Mark all combinations of the coplanar vertices as
-		  // checked to avoid duplicating triangles
 		  std::sort(coplanar.begin(), coplanar.end());
 
-		  for (int i = 0; i < (int)coplanar.size()-2; i++)
+		  for (int coplanar_i = 0; coplanar_i < (int)coplanar.size()-2; coplanar_i++)
 		  {
-		    for (int j = i+1; j < (int)coplanar.size()-1; j++)
+		    for (int coplanar_j = coplanar_i+1; coplanar_j < (int)coplanar.size()-1; coplanar_j++)
 		    {
-		      for (std::size_t k = j+1; k < coplanar.size(); k++)
+		      for (std::size_t coplanar_k = coplanar_j+1; coplanar_k < coplanar.size(); coplanar_k++)
 		      {
-			checked.emplace( std::make_tuple(coplanar[i], coplanar[j], coplanar[k]) );
+			checked.emplace(std::make_tuple(coplanar[coplanar_i], coplanar[coplanar_j], coplanar[coplanar_k]));
 		      }
                     }
                   }
@@ -538,7 +479,6 @@ ConvexTriangulation::triangulate_graham_scan_3d(const std::vector<Point>& pm)
     throw std::runtime_error("tetrahedrons overlap");
   }
 
-
   double volume = .0;
   for (const std::vector<Point>& tet : triangulation)
   {
@@ -551,7 +491,6 @@ ConvexTriangulation::triangulate_graham_scan_3d(const std::vector<Point>& pm)
 
   if (std::abs(volume - reference_volume) > 1e-14)
     throw std::runtime_error("computed volume %f, but reference volume is %f (diff %e)");
-
 
 #endif
   return triangulation;
@@ -588,7 +527,6 @@ bool ConvexTriangulation::selfintersects(const std::vector<std::vector<Point>>& 
 	  {
 	    for (std::size_t k = 3; k < intersection.size(); k++)
 	    {
-	      // FIXME: Note that this fails if the first three points are colinear!
 	      if (orient3d(intersection[0],
 			   intersection[1],
 			   intersection[2],

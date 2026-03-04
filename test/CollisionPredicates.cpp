@@ -1,4 +1,4 @@
-// Unit tests for CollisionPredicates, ported from python/tests/test_collisions.py
+// Unit tests for CollisionPredicates
 
 #include "../geometry/CollisionPredicates.h"
 #include "../geometry/Point.h"
@@ -264,8 +264,207 @@ TEST_CASE("CollisionPredicates: tetrahedron-point 3D")
 }
 
 // ---------------------------------------------------------------------------
-// Tetrahedron-tetrahedron collisions
+// Triangle-segment collisions
 // ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: triangle-segment 2D")
+{
+  const Point p0(0.0, 0.0, 0.0);
+  const Point p1(1.0, 0.0, 0.0);
+  const Point p2(0.0, 1.0, 0.0);
+
+  SECTION("segment crosses triangle")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(0.25, -0.5, 0.0), Point(0.25, 0.5, 0.0)));
+  }
+  SECTION("segment inside triangle")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(0.1, 0.1, 0.0), Point(0.2, 0.1, 0.0)));
+  }
+  SECTION("segment endpoint on triangle vertex")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(0.0, 0.0, 0.0), Point(-1.0, -1.0, 0.0)));
+  }
+  SECTION("segment entirely outside")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(2.0, 0.0, 0.0), Point(3.0, 0.0, 0.0)));
+  }
+  SECTION("segment parallel outside")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(0.0, 2.0, 0.0), Point(1.0, 2.0, 0.0)));
+  }
+  SECTION("segment on triangle edge")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_2d(
+      p0, p1, p2, Point(0.1, 0.0, 0.0), Point(0.9, 0.0, 0.0)));
+  }
+}
+
+TEST_CASE("CollisionPredicates: triangle-segment 3D")
+{
+  const Point p0(0.0, 0.0, 0.0);
+  const Point p1(1.0, 0.0, 0.0);
+  const Point p2(0.0, 1.0, 0.0);
+
+  SECTION("segment pierces triangle")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2, Point(0.25, 0.25, -1.0), Point(0.25, 0.25, 1.0)));
+  }
+  SECTION("segment endpoint in triangle plane, inside")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2, Point(0.25, 0.25, 0.0), Point(0.25, 0.25, 1.0)));
+  }
+  SECTION("segment on same side of plane (no intersection)")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2, Point(0.25, 0.25, 1.0), Point(0.25, 0.25, 2.0)));
+  }
+  SECTION("segment pierces plane outside triangle")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2, Point(2.0, 2.0, -1.0), Point(2.0, 2.0, 1.0)));
+  }
+  SECTION("segment grazes triangle vertex")
+  {
+    CHECK(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2, Point(0.0, 0.0, -1.0), Point(0.0, 0.0, 1.0)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Triangle-triangle 3D: additional cases
+// ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: triangle-triangle 3D extra")
+{
+  SECTION("non-intersecting triangles (parallel planes)")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_triangle_3d(
+      Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0),
+      Point(0.0, 0.0, 1.0), Point(1.0, 0.0, 1.0), Point(0.0, 1.0, 1.0)));
+  }
+  SECTION("non-intersecting triangles (same plane, apart)")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_triangle_triangle_3d(
+      Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0),
+      Point(3.0, 0.0, 0.0), Point(4.0, 0.0, 0.0), Point(3.0, 1.0, 0.0)));
+  }
+  SECTION("triangles sharing an edge")
+  {
+    CHECK(CollisionPredicates::collides_triangle_triangle_3d(
+      Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0),
+      Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(0.0, -1.0, 0.0)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tetrahedron-segment collisions
+// ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: tetrahedron-segment 3D")
+{
+  const Point p0(0.0, 0.0, 0.0);
+  const Point p1(1.0, 0.0, 0.0);
+  const Point p2(0.0, 1.0, 0.0);
+  const Point p3(0.0, 0.0, 1.0);
+
+  SECTION("segment inside tetrahedron")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_segment_3d(
+      p0, p1, p2, p3, Point(0.1, 0.1, 0.1), Point(0.2, 0.1, 0.1)));
+  }
+  SECTION("segment pierces tetrahedron face")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_segment_3d(
+      p0, p1, p2, p3, Point(0.1, 0.1, -1.0), Point(0.1, 0.1, 0.5)));
+  }
+  SECTION("segment endpoint at tetrahedron vertex")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_segment_3d(
+      p0, p1, p2, p3, Point(0.0, 0.0, 0.0), Point(-1.0, 0.0, 0.0)));
+  }
+  SECTION("segment entirely outside")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_segment_3d(
+      p0, p1, p2, p3, Point(2.0, 0.0, 0.0), Point(3.0, 0.0, 0.0)));
+  }
+  SECTION("segment passes beside tetrahedron")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_segment_3d(
+      p0, p1, p2, p3, Point(1.0, 1.0, 0.0), Point(1.0, 1.0, 1.0)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tetrahedron-triangle collisions
+// ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: tetrahedron-triangle 3D")
+{
+  const Point p0(0.0, 0.0, 0.0);
+  const Point p1(1.0, 0.0, 0.0);
+  const Point p2(0.0, 1.0, 0.0);
+  const Point p3(0.0, 0.0, 1.0);
+
+  SECTION("triangle inside tetrahedron")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_triangle_3d(
+      p0, p1, p2, p3,
+      Point(0.1, 0.1, 0.1), Point(0.2, 0.1, 0.1), Point(0.1, 0.2, 0.1)));
+  }
+  SECTION("triangle cuts through tetrahedron face")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_triangle_3d(
+      p0, p1, p2, p3,
+      Point(0.2, 0.2, -0.5), Point(0.2, 0.2, 0.5), Point(0.4, 0.1, 0.0)));
+  }
+  SECTION("triangle entirely outside")
+  {
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_triangle_3d(
+      p0, p1, p2, p3,
+      Point(2.0, 0.0, 0.0), Point(3.0, 0.0, 0.0), Point(2.0, 1.0, 0.0)));
+  }
+  SECTION("triangle on tetrahedron face (shared face)")
+  {
+    CHECK(CollisionPredicates::collides_tetrahedron_triangle_3d(
+      p0, p1, p2, p3, p0, p1, p2));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Near-degenerate / near-touching cases
+// ---------------------------------------------------------------------------
+
+TEST_CASE("CollisionPredicates: near-touching (1e-14 separation)")
+{
+  SECTION("tet-point just outside (1e-14)")
+  {
+    const Point p0(0.0, 0.0, 0.0);
+    const Point p1(1.0, 0.0, 0.0);
+    const Point p2(0.0, 1.0, 0.0);
+    const Point p3(0.0, 0.0, 1.0);
+    // Point just outside the x=0 face
+    CHECK_FALSE(CollisionPredicates::collides_tetrahedron_point_3d(
+      p0, p1, p2, p3, Point(-1e-14, 0.0, 0.0)));
+  }
+  SECTION("tri-seg 3D just missing (segment does not reach plane)")
+  {
+    const Point p0(0.0, 0.0, 0.0);
+    const Point p1(1.0, 0.0, 0.0);
+    const Point p2(0.0, 1.0, 0.0);
+    // Segment above the triangle plane, does not cross it
+    CHECK_FALSE(CollisionPredicates::collides_triangle_segment_3d(
+      p0, p1, p2,
+      Point(0.25, 0.25, 1e-14), Point(0.25, 0.25, 1.0)));
+  }
+}
 
 TEST_CASE("CollisionPredicates: tetrahedron-tetrahedron 3D")
 {
